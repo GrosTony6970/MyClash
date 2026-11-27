@@ -25,7 +25,8 @@
  * the view of bouts that names a team side (migration 0284, `team-view-probe.mjs`), and the blow
  * stats that leave a team bout out (migration 0285, `team-blow-stats-probe.mjs`), and a League that
  * takes individual Tournaments only (migration 0287, `team-league-probe.mjs`), and a Tournament
- * that keeps its kind once it has a phase (migration 0288, `team-kind-phase-probe.mjs`). The kind
+ * that keeps its kind once it has a phase (migration 0288) and takes no double elimination and no
+ * Swiss phase when it is a team one (migration 0289), both in `team-kind-phase-probe.mjs`. The kind
  * trigger's races, the League link's and the phase's need two connections on committed rows: the
  * cascade probe runs them (`team-kind-race.mjs`).
  */

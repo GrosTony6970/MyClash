@@ -407,7 +407,10 @@ What is **not** derivable from the DDL, and so belongs here:
   so the save's refusal says it). The database refuses the rest and the API answers 409
   `entrant_kind_settled`, `kind_locked_by_phase` or `entrant_kind_mismatch`
   (`common/entrant-kind-refusal.ts`). A phase's insert holds its Tournament FOR SHARE, so a change
-  of kind running beside it waits and then sees it (0288's race). A team Tournament has no
+  of kind running beside it waits and then sees it (0288's race). The same insert refuses a double
+  elimination or Swiss phase on a team Tournament, so a switch to team that lands after the API's
+  own check still keeps one out; the API answers 409 `team_tournament_not_supported` (0289,
+  `phase_fits_entrant_kind`, rulings 996 and 1007). A team Tournament has no
   waitlist and takes no forfeit rules (ruling 972); a save checks both against the kind in force
   (`events/tournament-kind.ts`). `teams` holds the team of one team Tournament, and its `size` (1 to 10) bounds the
   team's numbered Slots. A team's optional `logo_url` (0283) is stored as a Tournament's logo; an

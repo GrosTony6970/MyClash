@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import { danglingReferences } from './archive-references';
 import { makeService } from './archive.fixtures';
 import { ARCHIVE_COLLECTED_TABLES, TABLE_TO_ARCHIVE_KEY } from './archive.tables';
@@ -1067,6 +1067,35 @@ describe('ArchiveService', () => {
       'every child must point at the tournament that was actually inserted',
     ).toBe(insertedTournamentId);
     expect(inserted.phases?.[0]?.tournament_id).toBe(insertedTournamentId);
+  });
+
+  // An archive of a team Tournament made before 0289 can hold a double elimination phase.
+  it('answers a kind trigger refusing a restored phase as the named 409', async () => {
+    const { service } = makeService(scopedRows());
+    const archive = await service.generateTournamentArchive('t-1', 'user-1', {
+      include: 'scoring',
+    });
+    const db = (service as unknown as { supabase: { service: { from: Mock } } }).supabase.service;
+    const read = db.from.getMockImplementation()!;
+    db.from.mockImplementation((table: string) => {
+      const chain = read(table);
+      if (table !== 'phases') return chain;
+      const error = { code: '23514', message: 'phase_fits_entrant_kind: t-1 is a team tournament' };
+      chain.insert = vi.fn(() => ({ select: () => Promise.resolve({ data: null, error }) }));
+      return chain;
+    });
+
+    const refusal = await service
+      .restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+        targetEventId: 'event-1',
+        confirmation: 'RESTORE MYCLASH ARCHIVE',
+      })
+      .catch((e: unknown) => e);
+    expect(refusal).toBeInstanceOf(ConflictException);
+    expect((refusal as ConflictException).getResponse()).toEqual({
+      reason: 'team_tournament_not_supported',
+      message: 'A team Tournament takes no double elimination and no Swiss phase yet.',
+    });
   });
 
   it('refuses to restore a Tournament into an archived Event (ruling 222)', async () => {

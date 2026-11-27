@@ -1,8 +1,8 @@
 /**
  * The kind triggers' refusals as a 409 a screen can name (`entrant-kind-refusal.ts`).
  *
- * The messages below are the triggers' own text (0281 and 0287, `raise exception`), as PostgREST
- * passes it on with the SQLSTATE; the cascade probe proves each prefix on a real database
+ * The messages below are the triggers' own text (0281, 0287, 0288 and 0289, `raise exception`), as
+ * PostgREST passes it on with the SQLSTATE; the cascade probe proves each prefix on a real database
  * (`scripts/lib/team-kind-race.mjs`).
  */
 import { ConflictException } from '@nestjs/common';
@@ -11,6 +11,7 @@ import {
   entrantKindMismatch,
   entrantKindRefusal,
   teamTournamentLeague,
+  teamTournamentNotSupported,
 } from './entrant-kind-refusal';
 
 const HOLDS = {
@@ -26,6 +27,12 @@ const PHASED = {
   code: '23514',
   message:
     'entrant_kind_set_before_phases: Tournament 0b8f… has a phase, so its kind stays individual',
+};
+// 0289's refusal (rulings 996 and 1007), as its `raise exception` writes it.
+const PHASE_FITS = {
+  code: '23514',
+  message:
+    'phase_fits_entrant_kind: a team Tournament takes no double_elim phase, and Tournament 0b8f… is a team one',
 };
 // 0287's two League refusals, as its `raise exception` writes them.
 const LEAGUE_LINK = {
@@ -65,6 +72,15 @@ describe('entrantKindRefusal', () => {
       reason: 'kind_locked_by_phase',
       message:
         'Delete the Pools and the bracket first: a Tournament keeps its kind once it has Pools or a bracket.',
+    });
+  });
+
+  it('names a double elimination or Swiss phase on a team Tournament as the phase doors do (ruling 996)', () => {
+    const refusal = entrantKindRefusal(PHASE_FITS);
+    expect(refusal?.getStatus()).toBe(409);
+    expect(refusal?.getResponse()).toEqual({
+      reason: 'team_tournament_not_supported',
+      message: 'A team Tournament takes no double elimination and no Swiss phase yet.',
     });
   });
 
@@ -113,6 +129,16 @@ describe('the refusals a door says before the database', () => {
   it('says the mismatch as the trigger does', () => {
     expect(entrantKindMismatch().getResponse()).toEqual(entrantKindRefusal(HOLDS)?.getResponse());
     expect(entrantKindMismatch().getResponse()).toMatchObject({ reason: 'entrant_kind_mismatch' });
+  });
+
+  it('says a phase a team Tournament does not take as the trigger does', () => {
+    expect(teamTournamentNotSupported().getResponse()).toEqual(
+      entrantKindRefusal(PHASE_FITS)?.getResponse(),
+    );
+    expect(teamTournamentNotSupported('Its own sentence.').getResponse()).toEqual({
+      reason: 'team_tournament_not_supported',
+      message: 'Its own sentence.',
+    });
   });
 
   it('says a League link to a team Tournament as the trigger does', () => {

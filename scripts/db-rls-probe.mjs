@@ -45,15 +45,16 @@
  *      check 24: anon runs only the helpers its read rules need, every one of them needed, and
  *      nothing else of `public` is open to a web role or PUBLIC (0275,
  *      `lib/function-door-probe.mjs`); check 25: a Tournament holds only entrants of its kind and
- *      keeps its kind once it holds one (0281) or has a phase (0288,
- *      `lib/team-kind-phase-probe.mjs`), a team's slots keep their rules (0281), and each side
- *      link names a Registration or a Team, never both, with a Match and a forfeit of one kind
- *      (0282, `lib/team-tables-probe.mjs`), each key that names a team has its index (0283,
- *      `lib/team-key-indexes-probe.mjs`), and `vw_tournament_query_matches` runs as its caller and
- *      names a team side (0284, `lib/team-view-probe.mjs`), and `fighter_blow_value_stats` leaves
- *      a team bout out (0285, `lib/team-blow-stats-probe.mjs`), and a League takes individual
- *      Tournaments only: no live link to a team Tournament, no switch to team under a live link
- *      (0287, `lib/team-league-probe.mjs`).
+ *      keeps its kind once it holds one (0281) or has a phase (0288), and a team Tournament takes
+ *      no double elimination and no Swiss phase (0289, `lib/team-kind-phase-probe.mjs`), a team's
+ *      slots keep their rules (0281), and each side link names a Registration or a Team, never
+ *      both, with a Match and a forfeit of one kind (0282, `lib/team-tables-probe.mjs`), each key
+ *      that names a team has its index (0283, `lib/team-key-indexes-probe.mjs`), and
+ *      `vw_tournament_query_matches` runs as its caller and names a team side (0284,
+ *      `lib/team-view-probe.mjs`), and `fighter_blow_value_stats` leaves a team bout out (0285,
+ *      `lib/team-blow-stats-probe.mjs`), and a League takes individual Tournaments only: no live
+ *      link to a team Tournament, no switch to team under a live link (0287,
+ *      `lib/team-league-probe.mjs`).
  * Since 0274 four of the five helper loops (ruling 111a left them) have no way back; the last,
  * `can_manage_penalty_ruleset` over `penalty_rulesets`, needs an account id under the anon role. No
  * table read as `authenticated` reaches any helper: checks 5, 7, 21 and 22 expect a refusal on

@@ -42,6 +42,7 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import { SelectableRulesetsService } from '../rulesets/selectable-rulesets.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
+import { entrantKindRefusal } from '../../common/entrant-kind-refusal';
 import type {
   ArchiveInclude,
   ArchiveOptions,
@@ -790,9 +791,13 @@ export class ArchiveService {
     return readArchivedRows((name) => this.db().from(name), table, column, values);
   }
 
+  /**
+   * A kind trigger's refusal (an entrant or a phase the Tournament's kind does not take) is the
+   * named 409 the doors answer, not the trigger's raw text.
+   */
   private async insertRows(table: string, rows: ArchiveRow[]): Promise<void> {
     const { error } = await this.db().from(table).insert(rows).select('*');
-    if (error) throw new BadRequestException(error.message);
+    if (error) throw entrantKindRefusal(error) ?? new BadRequestException(error.message);
   }
 
   private async uniqueEventSlug(orgId: string, desired: string): Promise<string> {

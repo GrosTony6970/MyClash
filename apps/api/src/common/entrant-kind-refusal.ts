@@ -1,12 +1,14 @@
 import { ConflictException } from '@nestjs/common';
 
 /**
- * The kind triggers' refusals (migrations 0281, 0287 and 0288), as the 409 a screen can name.
+ * The kind triggers' refusals (migrations 0281, 0287, 0288 and 0289), as the 409 a screen can name.
  *
  * A Tournament holds one kind of entrant: Registrations when it is individual, teams when it is a
  * team Tournament. The database refuses the other kind (`entrant_kind_holds`), and refuses a change
  * of kind once the Tournament holds any entrant (`entrant_kind_is_settled`) or has a phase
- * (`entrant_kind_set_before_phases`, ruling 989). A League takes
+ * (`entrant_kind_set_before_phases`, ruling 989). It refuses a double elimination or Swiss phase on
+ * a team Tournament (`phase_fits_entrant_kind`, ruling 996), which a phase door checks first but
+ * reads several reads before its insert. A League takes
  * individual Tournaments only (rulings 729, 981): the database refuses a live League link to a team
  * Tournament (`league_link_individual_only`), and a switch to team while a live link exists
  * (`league_link_blocks_team`). Each raises `check_violation` (23514) with the trigger's name first
@@ -36,6 +38,11 @@ const REFUSALS = [
       'Delete the Pools and the bracket first: a Tournament keeps its kind once it has Pools or a bracket.',
   },
   {
+    prefix: 'phase_fits_entrant_kind:',
+    reason: 'team_tournament_not_supported',
+    message: 'A team Tournament takes no double elimination and no Swiss phase yet.',
+  },
+  {
     prefix: 'league_link_individual_only:',
     reason: 'team_tournament_league',
     message: 'A League takes individual Tournaments only: League points belong to persons.',
@@ -51,12 +58,12 @@ const CHECK_VIOLATION = '23514';
 
 /**
  * The 409 for what a team Tournament does not take yet: its Pools and a single elimination bracket
- * run, double elimination and Swiss have no team path (ADR-022, call 2 of slice 1c-1). A route that
- * is not a phase says its own English sentence; the `reason` stays the same.
+ * run, double elimination and Swiss have no team path (ADR-022, call 2 of slice 1c-1). The same
+ * reason and sentence as the phase trigger's (0289). A route that is not a phase says its own
+ * English sentence; the `reason` stays the same.
  */
-export function teamTournamentNotSupported(
-  message = 'A team Tournament takes no double elimination and no Swiss phase yet.',
-): ConflictException {
+export function teamTournamentNotSupported(message?: string): ConflictException {
+  if (message === undefined) return conflictOf('team_tournament_not_supported');
   return new ConflictException({ reason: 'team_tournament_not_supported', message });
 }
 

@@ -21,6 +21,7 @@ import {
 } from '@myclash/rules/scheduling';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
+import { entrantKindRefusal } from '../../common/entrant-kind-refusal';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { eventHemaRatingsId, type RatedPerson } from '../hema-ratings/event-hema-ratings-id';
 import { randomInt } from 'node:crypto';
@@ -660,8 +661,12 @@ export class PhasesService {
       .select('id')
       .single();
 
-    if (phaseError || !phase)
-      throw new BadRequestException(phaseError?.message ?? 'Failed to create phase');
+    // A switch to team that committed after the kind check above: the database refuses a team
+    // Tournament's double elimination (0289), and the door names it as its own check does.
+    if (phaseError) {
+      throw entrantKindRefusal(phaseError) ?? new BadRequestException(phaseError.message);
+    }
+    if (!phase) throw new BadRequestException('Failed to create phase');
     const phaseId = (phase as { id: string }).id;
 
     // Insert bracket slots with real phase ID

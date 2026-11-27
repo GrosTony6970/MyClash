@@ -1,12 +1,18 @@
 import { ConflictException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { mockSupabase, queriedTables, selectsFor } from '../../common/testing/supabase-chain';
+import {
+  mockSupabase,
+  queriedTables,
+  selectsFor,
+  writesTo,
+} from '../../common/testing/supabase-chain';
 import type { FighterStatusService } from '../matches/fighter-status.service';
 import type { SwissPairingService } from '../swiss/swiss-pairing.service';
 import type { SwissSeedingService } from '../swiss/swiss-seeding.service';
 import type { GenerateSwissDto } from '../swiss/dto/swiss.dto';
 import { SwissService } from '../swiss/swiss.service';
 import { PhasesService } from './phases.service';
+import { withStampedRules } from './match-rules.fixtures';
 
 /**
  * Team Longsword runs its Pools and a single elimination bracket. Double elimination and Swiss have
@@ -195,5 +201,77 @@ describe('generateSwiss — a team Tournament', () => {
     expect(queriedTables(supabase.from)).toEqual(['tournaments']);
     expect(selectsFor(supabase.from, 'tournaments')).toEqual(['entrant_kind']);
     expect(supabase.writes).toEqual([]);
+  });
+});
+
+/**
+ * The race (rulings 996 and 1007). Paul asks for a double elimination bracket, or a Swiss phase,
+ * for the empty Open Longsword. The door reads "individual", so its own check passes. Marie
+ * switches the Open to team before the phase's insert, and the database refuses the insert
+ * (`phase_fits_entrant_kind`, 0289). Paul is told what his own check would have said: the named
+ * 409, not a 400 with the trigger's raw text.
+ */
+describe('a switch to team between the kind check and the phase insert', () => {
+  const REFUSED = {
+    code: '23514',
+    message:
+      'phase_fits_entrant_kind: a team Tournament takes no double_elim phase, and Tournament t-1 is a team one',
+  };
+  // The read of an older phase finds none; the insert is refused.
+  const phases = () => [
+    { data: null, error: null },
+    { data: null, error: REFUSED },
+  ];
+
+  it('generateBracket answers the named 409, not a 400', async () => {
+    const supabase = mockSupabase(
+      ...withStampedRules({
+        tournaments: { rows: [tournament('individual')] },
+        phases: phases(),
+      }),
+    );
+    const orgs = { assertOrgRole: vi.fn().mockResolvedValue(undefined) };
+    const service = new PhasesService(supabase as never, {} as never, undefined, orgs as never);
+
+    expect(
+      await refusal(
+        service.generateBracket(
+          't-1',
+          { phaseType: 'double_elim', qualifyCount: 4 },
+          false,
+          'user-1',
+        ),
+      ),
+    ).toEqual({
+      reason: 'team_tournament_not_supported',
+      message: 'A team Tournament takes no double elimination and no Swiss phase yet.',
+    });
+    expect(writesTo(supabase, 'phases').map((write) => write.op)).toEqual(['insert']);
+    expect(queriedTables(supabase.from)).not.toContain('bracket_slots');
+  });
+
+  it('generateSwiss answers the named 409, not a 400', async () => {
+    const supabase = mockSupabase({
+      tournaments: { rows: [tournament('individual')] },
+      phases: phases(),
+    });
+    const seeding = {
+      loadRegistrations: vi.fn().mockResolvedValue([{ id: 'r1' }, { id: 'r2' }]),
+      resolveSeeding: vi.fn().mockResolvedValue({ order: ['r1', 'r2'], seed: 7 }),
+    };
+    const pairing = { commitNextRound: vi.fn() };
+    const service = new SwissService(
+      supabase as never,
+      pairing as unknown as SwissPairingService,
+      seeding as unknown as SwissSeedingService,
+      {} as FighterStatusService,
+    );
+
+    expect(await refusal(service.generateSwiss('t-1', {} as GenerateSwissDto))).toEqual({
+      reason: 'team_tournament_not_supported',
+      message: 'A team Tournament takes no double elimination and no Swiss phase yet.',
+    });
+    expect(writesTo(supabase, 'phases').map((write) => write.op)).toEqual(['insert']);
+    expect(pairing.commitNextRound).not.toHaveBeenCalled();
   });
 });

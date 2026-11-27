@@ -33,6 +33,9 @@ meaning: one Person entered in one Tournament. A Team is its own table, `teams`,
 slots in `team_slots`. A Tournament is `individual` or `team` (`tournaments.entrant_kind`), and a
 database trigger holds the kind: no Registration in a team Tournament, no Team in an individual one,
 no change of kind once an entrant exists, nor once a phase exists (ruling 989, migration 0288).
+The phase trigger, under the same lock, refuses a double elimination or Swiss phase on a team
+Tournament, and only those, so a race with a switch to team cannot leave one there
+(`phase_fits_entrant_kind`, rulings 996 and 1007, migration 0289).
 
 **Each Registration link gains a team twin**, with a check "a Registration or a Team, never both":
 the Pool seat, both bracket slots, both sides and the winner of a Match, a card, the forfeiting

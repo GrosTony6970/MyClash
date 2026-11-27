@@ -25,10 +25,15 @@
  *     B's switch waits on it, then its AFTER check sees A's link and is refused
  *     (`league_link_blocks_team:`);
  *   - a switch to 'team' while a phase is added (0288, ruling 989): A adds a bracket phase and holds
- *     its FOR SHARE (`phase_locks_entrant_kind`); B's switch waits on it, then its AFTER check sees
- *     A's phase and is refused (`entrant_kind_set_before_phases:`). The phase's foreign key alone
- *     takes FOR KEY SHARE, which a switch does not block: without the lock B would not wait, would
- *     not see the phase, and would be taken.
+ *     its FOR SHARE (`phase_fits_entrant_kind`, 0289); B's switch waits on it, then its AFTER
+ *     check sees A's phase and is refused (`entrant_kind_set_before_phases:`). The phase's foreign
+ *     key alone takes FOR KEY SHARE, which a switch does not block: without the lock B would not
+ *     wait, would not see the phase, and would be taken;
+ *   - a double elimination phase added while the Tournament switches to 'team' (0289, rulings 996
+ *     and 1007): A switches it to 'team'; B's insert waits in its trigger's FOR SHARE read
+ *     (`phase_fits_entrant_kind`), then reads 'team' and is refused (`phase_fits_entrant_kind:`).
+ *     The API checks the type several reads before the insert: without the trigger's check B would
+ *     be taken, and the team Tournament would hold a double elimination bracket.
  * The Tournaments stay committed and go with the seed's Event, by the probe's club delete; the
  * League the link races make is deleted at the end, and its links with it.
  */
@@ -119,8 +124,8 @@ const requestLink = (q, tournament, league) =>
   q`INSERT INTO league_tournament_links (league_id, tournament_id, status, requested_by_user_id)
     VALUES (${league}, ${tournament}, 'requested', ${REQUESTER})`;
 
-const addPhase = (q, tournament) =>
-  q`INSERT INTO phases (tournament_id, type) VALUES (${tournament}, 'single_elim')`;
+const addPhase = (q, tournament, type = 'single_elim') =>
+  q`INSERT INTO phases (tournament_id, type) VALUES (${tournament}, ${type})`;
 
 /**
  * The Tournament's kind, its number of teams, its number of live League links and its number of
@@ -144,7 +149,7 @@ const refusedWith = (outcome, prefix) =>
   outcome?.code === '23514' && outcome.refused?.startsWith(prefix) === true;
 
 /**
- * The five races: the kind the empty Tournament starts with, what A does and keeps open, what B
+ * The six races: the kind the empty Tournament starts with, what A does and keeps open, what B
  * does, the prefix B must be refused with, and the Tournament's kind, number of teams, number of
  * live League links and number of phases once both ended. `league` is the race League's id.
  */
@@ -193,6 +198,15 @@ const RACES = [
     second: (sp, id) => makeTeam(sp, id),
     refusedWith: 'entrant_kind_set_before_phases:',
     after: ['individual', 0, 0, 1],
+  },
+  {
+    what: 'a double elimination phase during a switch to team',
+    slug: 'kind-race-double',
+    kind: 'individual',
+    first: (tx, id) => makeTeam(tx, id),
+    second: (sp, id) => addPhase(sp, id, 'double_elim'),
+    refusedWith: 'phase_fits_entrant_kind:',
+    after: ['team', 0, 0, 0],
   },
 ];
 

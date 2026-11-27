@@ -1,6 +1,7 @@
 /**
  * Part of check 25 of the RLS probe (`team-tables-probe.mjs` runs it): a Tournament keeps its kind
- * once it has a phase (migration 0288, ruling 989).
+ * once it has a phase (migration 0288, ruling 989), and a team Tournament takes no double
+ * elimination and no Swiss phase (migration 0289, rulings 996 and 1007).
  *
  * Each write runs AS THE OWNER in a savepoint rolled back, on a new Tournament of the published
  * Event that each case makes, with no entrant and no League link: `entrant_kind_is_settled` (0281)
@@ -8,8 +9,11 @@
  * check is the first to fail. A refusal is matched by the name the trigger raises with, so a write
  * refused for another reason is a failure too. Refused: the switch to team of an individual
  * Tournament with a bracket phase, and the switch to individual of a team Tournament with a Pool
- * phase. Taken: the switch of a Tournament whose only phase was deleted. The race of a phase and a
- * switch needs two connections on committed rows: the cascade probe runs it (`team-kind-race.mjs`).
+ * phase; a double elimination and a Swiss phase on a team Tournament, and a team Tournament's
+ * single elimination phase changed to double elimination. Taken: the switch of a Tournament whose
+ * only phase was deleted; a single elimination and a Pool phase on a team Tournament; a double
+ * elimination and a Swiss phase on an individual one. The races of a phase and a switch need two
+ * connections on committed rows: the cascade probe runs them (`team-kind-race.mjs`).
  */
 
 import { errorOf, OPEN } from './match-rules-probe-kit.mjs';
@@ -31,6 +35,15 @@ async function switchTo(sp, id, kind) {
   if (now !== kind) throw new Error('the kind did not change');
 }
 
+/** The phase's type changed to `type`; throws when it did not change. */
+async function retype(sp, phase, type) {
+  await sp`UPDATE phases SET type = ${type} WHERE id = ${phase}`;
+  const [{ now }] = await sp`SELECT type AS now FROM phases WHERE id = ${phase}`;
+  if (now !== type) throw new Error('the type did not change');
+}
+
+const FITS = 'phase_fits_entrant_kind';
+
 const CASES = [
   {
     what: 'the switch to team of a Tournament with a bracket phase and no entrant',
@@ -50,6 +63,41 @@ const CASES = [
       await sp`DELETE FROM phases WHERE id = ${phase}`;
       await switchTo(sp, id, 'team');
     },
+  },
+  {
+    what: 'a double elimination phase on a team Tournament',
+    refusedBy: FITS,
+    write: (sp) => phased(sp, 'team', 'double_elim'),
+  },
+  {
+    what: 'a Swiss phase on a team Tournament',
+    refusedBy: FITS,
+    write: (sp) => phased(sp, 'team', 'swiss'),
+  },
+  {
+    what: "a team Tournament's single elimination phase changed to double elimination",
+    refusedBy: FITS,
+    write: async (sp) => retype(sp, (await phased(sp, 'team', 'single_elim')).phase, 'double_elim'),
+  },
+  {
+    what: 'a single elimination phase on a team Tournament',
+    refusedBy: null,
+    write: (sp) => phased(sp, 'team', 'single_elim'),
+  },
+  {
+    what: 'a Pool phase on a team Tournament',
+    refusedBy: null,
+    write: (sp) => phased(sp, 'team', 'pool'),
+  },
+  {
+    what: 'a double elimination phase on an individual Tournament',
+    refusedBy: null,
+    write: (sp) => phased(sp, 'individual', 'double_elim'),
+  },
+  {
+    what: 'a Swiss phase on an individual Tournament',
+    refusedBy: null,
+    write: (sp) => phased(sp, 'individual', 'swiss'),
   },
 ];
 

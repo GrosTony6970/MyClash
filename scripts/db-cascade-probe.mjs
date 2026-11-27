@@ -44,7 +44,9 @@
  *     (0281, `lib/team-kind-race.mjs`); a League link requested while a Tournament switches to
  *     team, and the switch while a link is requested, the same way: the second waits and is
  *     refused by the League link trigger (0287); a switch to team while a phase is added, the
- *     same way: the switch waits and is refused by the phase trigger (0288); its Tournaments stay
+ *     same way: the switch waits and is refused by the phase trigger (0288); a double elimination
+ *     phase added while a Tournament switches to team, the same way: the phase waits and is
+ *     refused by the phase trigger (0289); its Tournaments stay
  *     committed until the club delete, its League is deleted at the end of the races;
  *   - the club delete commits, queues the photo's keys, and leaves none of the seeded rows.
  * Each check counts itself; the probe fails when any fails, and when fewer ran than it declares.
@@ -82,7 +84,7 @@ const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
 const seedPath = fileURLToPath(
   new URL('../packages/db/fixtures/cascade-probe-seed.sql', import.meta.url),
 );
-const EXPECTED_CHECKS = 104;
+const EXPECTED_CHECKS = 107;
 const ROLLBACK = new Error('rollback');
 
 const CLUB = 'ca5c0000-0000-4000-8000-000000000001';
@@ -375,7 +377,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `Cascade probe passed: ${checks} checks; an Event, a Tournament, a phase and a club delete on committed rows, every refusal that protects live data holds, every path that removes a photo queues its images, a team and a change of kind at once leave a Tournament of one kind, a League link and a switch to team at once leave no live link to a team Tournament.`,
+      `Cascade probe passed: ${checks} checks; an Event, a Tournament, a phase and a club delete on committed rows, every refusal that protects live data holds, every path that removes a photo queues its images, a team and a change of kind at once leave a Tournament of one kind, a League link and a switch to team at once leave no live link to a team Tournament, a double elimination phase and a switch to team at once leave no double elimination on a team Tournament.`,
     );
   }
 } catch (error) {

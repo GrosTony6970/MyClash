@@ -8,7 +8,7 @@ import {
 import { recommendedRoundCount } from '@myclash/rules/scheduling';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
-import { teamTournamentNotSupported } from '../../common/entrant-kind-refusal';
+import { entrantKindRefusal, teamTournamentNotSupported } from '../../common/entrant-kind-refusal';
 import { storedKind } from '../events/tournament-kind';
 import { FOUGHT_STATUSES } from '../matches/fought-match';
 // Value imports, not `import type`: Nest DI metadata.
@@ -77,7 +77,9 @@ export class SwissService {
       })
       .select('id')
       .maybeSingle();
-    if (error) throw new BadRequestException(error.message);
+    // A switch to team that committed after the kind check above: the database refuses a team
+    // Tournament's Swiss phase (0289), and the door names it as its own check does.
+    if (error) throw entrantKindRefusal(error) ?? new BadRequestException(error.message);
     if (!inserted) throw new BadRequestException('Swiss phase insert persisted nothing');
     const phaseId = (inserted as { id: string }).id;
 
