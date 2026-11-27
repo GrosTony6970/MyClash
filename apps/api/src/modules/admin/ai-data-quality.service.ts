@@ -11,6 +11,7 @@ import type {
   GenerationResult,
 } from '../ai-providers/adapters/provider-adapter.interface';
 import { parseModelJson } from '../../common/model-json';
+import { UUID_SHAPE as UUID_RE } from '../../common/uuid-shape';
 import { getCheapestModel } from '../ai-providers/model-registry';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AdminFeatureFlagsService } from './admin-feature-flags.service';
@@ -44,8 +45,6 @@ type AIRanking = {
 };
 
 const FALLBACK_AI_SUMMARY = 'AI summary unavailable.';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Coerce an actor identifier to a value the UUID `actor_user_id`

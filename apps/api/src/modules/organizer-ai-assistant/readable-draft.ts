@@ -9,6 +9,7 @@ import type {
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { eventZone } from '../../common/event-clock';
 import { inListChunks } from '../../common/postgrest-in-list';
+import { isUuidShape } from '../../common/uuid-shape';
 import { ROUND_CODE_EMBEDS, roundCodeFromMatchRow } from '../matches/round-code.helper';
 import { eventSkills } from '../mcp/tools/referee-write-gate';
 import { rosterDisplayName, type RosterPersonName } from '../referees/roster-display-name';
@@ -58,12 +59,17 @@ const count = (value: unknown): number | undefined =>
 const flag = (value: unknown): boolean | undefined =>
   typeof value === 'boolean' ? value : undefined;
 
-/** The string ids `key` holds across the actions of `kinds`, once each. */
+/**
+ * The uuid ids `key` holds across the actions of `kinds`, once each. Any other value is never
+ * sent: one value Postgres cannot read as a uuid refuses the whole read (22P02), and the list,
+ * the draft and the chat would answer 500. The chat's model passes `"matchId": "LSW-P2-M04"`;
+ * that id names no row, so it reads as missing.
+ */
 function idsOf(actions: readonly Action[], kinds: readonly string[], key: string): string[] {
   const ids = actions
     .filter((action) => kinds.includes(action['kind'] as string))
-    .map((action) => text(action[key]))
-    .filter((id): id is string => id !== undefined);
+    .map((action) => action[key])
+    .filter(isUuidShape);
   return [...new Set(ids)];
 }
 
@@ -195,7 +201,12 @@ async function readNames(db: SupabaseClient, eventId: string, actions: Action[])
     readPools(db, eventId, ids(['assign_referee'], 'poolId')),
     readPhases(db, eventId, ids(['generate_bracket'], 'poolPhaseId')),
     readReferees(db, eventId, ids(['assign_referee'], 'userId')),
-    readSkills(db, eventId, ids(['assign_referee'], 'role').length > 0),
+    // A role is a `referee_skills.id`, a text key (`custom-…`), not a uuid: not filtered by shape.
+    readSkills(
+      db,
+      eventId,
+      actions.some((action) => action['kind'] === 'assign_referee' && text(action['role'])),
+    ),
     readZone(
       db,
       eventId,

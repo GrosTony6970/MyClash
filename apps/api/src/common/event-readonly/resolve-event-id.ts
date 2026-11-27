@@ -24,6 +24,7 @@
 import type { FastifyRequest } from 'fastify';
 import type { SupabaseService } from '../../modules/supabase/supabase.service';
 import { isEventUuid } from '../event-ref';
+import { UUID_SHAPE } from '../uuid-shape';
 import { matchedRoute } from '../matched-route';
 
 type Db = SupabaseService['service'];
@@ -139,9 +140,6 @@ export function placementsOf(
   }
   return found;
 }
-
-/** Any version, as Postgres and `ParseUUIDPipe` read one. */
-const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * An Event named by id or by slug, read as the handlers read it. `event-ref.ts`

@@ -13,6 +13,7 @@
  * raw id and a log line, never the response.
  */
 import { Injectable, Logger } from '@nestjs/common';
+import { UUID_SHAPE as UUID_RE } from '../../common/uuid-shape';
 import { SupabaseService } from '../supabase/supabase.service';
 import type { ResolvedUser } from '../user-directory/user-directory.service';
 import { UserDirectoryService } from '../user-directory/user-directory.service';
@@ -28,8 +29,6 @@ export const MAX_PAYLOAD_REFS = 400;
 export const MAX_IDS_PER_KIND = 150;
 /** UserDirectory's auth fallback is sequential per id — keep the tail bounded. */
 export const MAX_USER_IDS = 50;
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface EntityLabelResult {
   /** `kind:id` → label. Absent means unresolved: hard-deleted, unknown kind, or a failed lookup. */

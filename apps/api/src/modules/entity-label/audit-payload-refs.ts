@@ -13,6 +13,7 @@
  * (Personal VALUES are handled separately, at write time, by
  * ../../common/audit-log#maskAuditPayload. This file is about id REFERENCES.)
  */
+import { UUID_SHAPE as UUID_RE } from '../../common/uuid-shape';
 import type { EntityKind } from './entity-label-specs';
 
 export interface RefRule {
@@ -23,12 +24,9 @@ export interface RefRule {
   action?: string;
 }
 
-/**
- * Deliberately lenient — shape only, no RFC 4122 version/variant nibbles.
- * A false negative here costs nothing (the raw id renders, as it does today),
- * whereas a strict regex silently drops real references from seeded data.
- */
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Deliberately lenient (`UUID_SHAPE`: no RFC 4122 version/variant nibbles). A false negative
+// here costs nothing (the raw id renders, as it does today), whereas a strict regex silently
+// drops real references from seeded data.
 
 /** A payload is a blob of unvalidated JSONB; these bound the walk. */
 const MAX_DEPTH = 6;

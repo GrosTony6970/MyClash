@@ -63,6 +63,7 @@
     // The organizer AI assistant's shared test doubles, split out when its
     // service test reached the 400-line cap. It imports vitest.
     "src/modules/organizer-ai-assistant/organizer-ai-assistant.harness.ts",
+    "src/modules/organizer-ai-assistant/readable-draft.fixtures.ts",
     // The Live board's seeded tables, split out when its service test reached
     // the 400-line cap. It imports vitest.
     "src/modules/staff/staff.service.live-board.harness.ts",
