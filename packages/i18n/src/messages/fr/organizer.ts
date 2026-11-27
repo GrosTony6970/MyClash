@@ -2880,8 +2880,10 @@ export const organizer = {
         diff: 'Différentiel : points marqués moins points encaissés.',
         doubles:
           "Doubles (les deux combattants touchent en même temps) ; moins il y en a, mieux c'est.",
-        hitsGiven: 'Touches nettes portées aux adversaires.',
-        hitsReceived: "Touches nettes reçues ; moins il y en a, mieux c'est.",
+        hitsGiven:
+          'Points marqués par les touches de ce combattant, selon la valeur de chaque cible, contre-frappes comprises.',
+        hitsReceived:
+          "Nombre de fois où ce combattant a été touché, contre-frappes comprises ; une touche profonde compte une fois. Moins il y en a, mieux c'est.",
         status: 'Indique si tous les matchs de poule de ce combattant sont terminés.',
       },
     },

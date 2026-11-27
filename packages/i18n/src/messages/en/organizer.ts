@@ -2918,8 +2918,10 @@ export const organizer = {
         ptsConceded: 'Total points conceded across all pool matches.',
         diff: 'Differential: points scored minus points conceded.',
         doubles: 'Double hits (both fighters land at once); fewer is better.',
-        hitsGiven: 'Clean hits landed on opponents.',
-        hitsReceived: 'Clean hits received; fewer is better.',
+        hitsGiven:
+          "Points this fighter's hits scored, by the value of each target, afterblows included.",
+        hitsReceived:
+          'Times this fighter was hit, afterblows included; a deep hit counts once. Fewer is better.',
         status: "Whether this fighter's pool matches are all completed.",
       },
     },
