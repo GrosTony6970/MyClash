@@ -375,10 +375,11 @@ export function buildScoringButtons(grammar: ScoringGrammar): ScoringButtonConfi
  * The buttons a bout scores with: its stored buttons, as its scoring unit puts them in force.
  *
  * A venues bout scores a touch, not a target, so it shows one `+1` per side, and, where the
- * grammar has an afterblow, one `1-1` (it is still recorded, and wins no venue). Derived at read,
- * never written: the stored buttons stay as `buildScoringButtons` seeded them, so switching the
- * unit back and forth needs no write. The server prices a venues clean hit as 1 whatever value
- * arrives, so a pad holding stale buttons cannot inflate a score.
+ * pad shows an afterblow button at all (one stored button is visible), one `1-1` (it is still
+ * recorded, and wins no venue). Derived at read, never written: the stored buttons stay as
+ * `buildScoringButtons` seeded them, so switching the unit back and forth needs no write. The
+ * server prices a venues clean hit as 1 whatever value arrives, so a pad holding stale buttons
+ * cannot inflate a score.
  *
  * Points mode gives the stored buttons themselves, the same object.
  */
@@ -389,9 +390,8 @@ export function buttonsInForce(
   if (unit !== 'venues') return buttons;
   return {
     clean: [{ label: '+1', value: 1, visible: true }],
-    afterblow:
-      buttons.afterblow.length > 0
-        ? [{ label: '1-1', attackerPts: 1, defenderPts: 1, visible: true }]
-        : [],
+    afterblow: buttons.afterblow.some((button) => button.visible)
+      ? [{ label: '1-1', attackerPts: 1, defenderPts: 1, visible: true }]
+      : [],
   };
 }

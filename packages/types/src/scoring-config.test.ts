@@ -170,4 +170,12 @@ describe('buttonsInForce', () => {
       afterblow: [],
     });
   });
+
+  it('gives no afterblow button in venues mode when the organiser hid every one', () => {
+    const hidden = stored.afterblow.map((button) => ({ ...button, visible: false }));
+    expect(buttonsInForce({ clean: stored.clean, afterblow: hidden }, 'venues')).toEqual({
+      clean: [{ label: '+1', value: 1, visible: true }],
+      afterblow: [],
+    });
+  });
 });
