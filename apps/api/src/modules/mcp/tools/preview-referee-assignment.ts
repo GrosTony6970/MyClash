@@ -3,23 +3,20 @@
  * says what assigning, swapping or removing one referee on one Match would do, and hands back
  * a sealed confirmation that `apply_referee_assignment` needs. It writes nothing.
  */
-import { READ_PAGE } from '../../../common/postgrest-in-list';
-import { readEveryRowById } from '../../../common/read-every-row-by-id';
 import { winningAssignmentRows } from '../../matches/resolve-match-referees';
 import { namedBest } from '../../tournament-query/tournament-query.tools.service';
 import type { McpCaller, McpToolDeps } from '../mcp-server';
+import { fold, matchByCode, tournamentBouts } from './match-by-code';
 import { isRefusal, type McpRefusal } from './mcp-answer';
 import { readableTournamentId, type McpEvent } from './readable-event';
 import {
   eventSkills,
   holderOf,
   judgeSwap,
-  MATCH_SELECT,
   missingSkillRefusal,
   readCrewRows,
   refereeWriteRefusal,
   rowsAfterWrite,
-  toWriteMatch,
   type CrewRow,
   type RefereeSkill,
   type WriteMatch,
@@ -62,53 +59,6 @@ export interface PreviewRefereeAnswer {
 const NEXT =
   'Show the person this change, the crew after it and every warning; call ' +
   'apply_referee_assignment only after they say yes.';
-
-/** Case and accents folded away, so `declarant` finds `Déclarant`. */
-const fold = (text: string) =>
-  text
-    .normalize('NFD')
-    .replace(/\p{M}+/gu, '')
-    .toLocaleLowerCase();
-
-/**
- * Every bout of the phases, page after page by id: PostgREST cuts a read at 1000 rows and says
- * nothing (ruling 831), and a cut read would answer "No Match" for a bout that exists.
- */
-async function everyMatch(deps: McpToolDeps, phaseIds: string[]) {
-  const { rows } = await readEveryRowById<Record<string, unknown>>((after) => {
-    const query = deps.supabase.service
-      .from('matches')
-      .select(MATCH_SELECT)
-      .in('phase_id', phaseIds)
-      .order('id');
-    return (after === undefined ? query : query.gt('id', after)).limit(READ_PAGE);
-  });
-  return rows;
-}
-
-/** The Tournament's bout with this round code (call O), compared case-blind. */
-async function findMatch(
-  deps: McpToolDeps,
-  tournamentId: string,
-  code: string,
-): Promise<{ tournament: string; match: WriteMatch } | McpRefusal> {
-  const { data: t, error: tError } = await deps.supabase.service
-    .from('tournaments')
-    .select('name, phases(id)')
-    .eq('id', tournamentId)
-    .maybeSingle();
-  if (tError || !t) throw new Error(`tournament read failed: ${tError?.message ?? 'no row'}`);
-  const { name, phases } = t as unknown as { name: string; phases: { id: string }[] | null };
-  const phaseIds = (phases ?? []).map((p) => p.id);
-  const rows = phaseIds.length > 0 ? await everyMatch(deps, phaseIds) : [];
-  const wanted = code.trim().toLocaleLowerCase();
-  const found = rows.map(toWriteMatch).filter((m) => m.code.toLocaleLowerCase() === wanted);
-  if (found.length === 0) return { refusal: `No Match "${code}" in ${name}.` };
-  if (found.length > 1) {
-    return { refusal: `Several Matches of ${name} are "${code}": MyClash cannot tell them apart.` };
-  }
-  return { tournament: name, match: found[0]! };
-}
 
 /** The role by its name or id (call P), case- and accent-blind. */
 function findSkill(
@@ -243,9 +193,9 @@ export async function previewRefereeAssignment(
   const { event, tournamentId } = readable;
   const gate = await refereeWriteRefusal(event, caller, deps);
   if (gate) return gate;
-  const found = await findMatch(deps, tournamentId, args.match);
-  if (isRefusal(found)) return found;
-  const { match } = found;
+  const bouts = await tournamentBouts(deps, tournamentId);
+  const match = matchByCode(bouts, args.match);
+  if (isRefusal(match)) return match;
   const skills = await eventSkills(deps.supabase.service, event.id);
   const skill = findSkill(skills, args.role, event);
   if (isRefusal(skill)) return skill;
@@ -258,7 +208,7 @@ export async function previewRefereeAssignment(
   const judged = await decide(deps, event.id, match, skill, person, holder);
   if (isRefusal(judged)) return judged;
   return answerOf(
-    { event, tournament: found.tournament, match, skill, person, holder, rows, skills, judged },
+    { event, tournament: bouts.tournament, match, skill, person, holder, rows, skills, judged },
     caller,
     deps,
     deps.confirmKey,
