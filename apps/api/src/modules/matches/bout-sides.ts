@@ -10,7 +10,8 @@ export interface BoutSides {
   blue: string | null;
 }
 
-const idOf = (value: unknown): string | null => (typeof value === 'string' ? value : null);
+/** An id column of a row read loosely: its string, or null for anything else. */
+export const idOf = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
 /**
  * The sides of a bout, from its row: each side is a Registration or a team (0282). Judged by

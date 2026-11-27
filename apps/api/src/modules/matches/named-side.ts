@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { sidesOf } from './bout-sides';
+import { idOf, sidesOf } from './bout-sides';
 
 /**
  * The side a request names: a Registration (a Fighter) or a team (ADR-022). A forfeit, a card and
@@ -35,8 +35,6 @@ export interface BoutSideKinds {
   redTeamId: string | null;
   blueTeamId: string | null;
 }
-
-const idOf = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
 /** A bout row's side keys (`sidesOf`) and its teams, as `isSideOfBout` judges them. */
 export function sideKindsOf(row: Record<string, unknown>): BoutSideKinds {

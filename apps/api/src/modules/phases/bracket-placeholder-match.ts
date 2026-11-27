@@ -1,7 +1,6 @@
+import { idOf } from '../matches/bout-sides';
 import type { MatchRulesetStamp } from './match-ruleset';
 import { boutSidesOfSlot } from './seat-columns';
-
-const idOf = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
 /**
  * The `matches` row shape pre-created for a freshly generated bracket slot.
