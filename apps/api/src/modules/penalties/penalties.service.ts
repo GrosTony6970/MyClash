@@ -35,14 +35,13 @@ import { restampUnstartedMatches } from '../phases/match-ruleset';
 import { ScoringService } from '../matches/scoring.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import { assertBoutTakes } from '../matches/bout-not-started';
-import { sidesOf } from '../matches/bout-sides';
 import { BOUT_CARD_PIN, cardPinOf } from '../matches/bout-rules';
 import { scoredAtServer } from '../matches/late-press';
 import { scoringAwaitsRoundAdvance } from '../matches/round-awaits-advance';
 import { FighterStatusService } from '../matches/fighter-status.service';
 import { MatchForfeitsService } from '../matches/match-forfeits.service';
 import { matchLocked } from '../matches/match-locked';
-import { isSideOfBout, namedSideOf } from '../matches/named-side';
+import { isSideOfBout, namedSideOf, sideKindsOf, type BoutSideKinds } from '../matches/named-side';
 import { cardChangeLocked, tournamentClockOf } from '../events/tournament-clock';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { dropSpentBlackCardReview, takeBackBlackCardForfeit } from './black-card-undo';
@@ -1476,15 +1475,11 @@ export class PenaltiesService {
       .eq('id', tournament['event_id'] as string)
       .maybeSingle();
     const event = (eventData ?? {}) as Row;
-    const sides = sidesOf(match);
 
     return {
       id: match['id'] as string,
       lockedAt: (match['locked_at'] as string | null) ?? null,
-      redTeamId: (match['red_team_id'] as string | null) ?? null,
-      blueTeamId: (match['blue_team_id'] as string | null) ?? null,
-      redSideId: sides.red,
-      blueSideId: sides.blue,
+      ...sideKindsOf(match),
       tournamentId: tournament['id'] as string,
       eventId: tournament['event_id'] as string,
       organizationId: event['organization_id'] as string,
@@ -2007,17 +2002,15 @@ export function bumpPenaltyVersion(version: string): string {
   return `${trimmed}.1`;
 }
 
-interface MatchContext {
+/**
+ * The bout a card is taken on. Its sides (`BoutSideKinds`): each side's one key (`sideKey`), null
+ * while the side waits for a Fighter, and its team (0282), null on a bout of individuals.
+ */
+interface MatchContext extends BoutSideKinds {
   id: string;
   /** Null on a row read with no status: `assertBoutTakes` judges `scheduled` only. */
   status: string | null;
   lockedAt: string | null;
-  /** A team's side (0282); null on a bout of individuals. */
-  redTeamId: string | null;
-  blueTeamId: string | null;
-  /** Each side's one key (`sideKey`), or null while the side waits for a Fighter. */
-  redSideId: string | null;
-  blueSideId: string | null;
   tournamentId: string;
   eventId: string;
   organizationId: string;

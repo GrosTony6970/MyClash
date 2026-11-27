@@ -7,10 +7,9 @@ import {
 import { SupabaseService } from '../supabase/supabase.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import { assertBoutTakes } from '../matches/bout-not-started';
-import { sidesOf } from '../matches/bout-sides';
 import { cardSideColumns } from '../penalties/card-side';
 import { matchLocked } from '../matches/match-locked';
-import { isSideOfBout, namedSideOf } from '../matches/named-side';
+import { isSideOfBout, namedSideOf, sideKindsOf, type BoutSideKinds } from '../matches/named-side';
 import { OrganizationsService } from '../organizations/organizations.service';
 import type { ScoringActor } from '../staff/staff.service';
 import type { CreateProtestDto, VoidProtestDto } from './dto/protests.dto';
@@ -26,15 +25,11 @@ const BOUT_SELECT =
   'locked_at, current_round, ' +
   'phases!inner(tournament_id, tournaments!inner(events!inner(organization_id)))';
 
-interface Bout {
+/** Its sides (`BoutSideKinds`): a Registration's or a team's key, null while not known. */
+interface Bout extends BoutSideKinds {
   id: string;
   status: string | null;
   lockedAt: string | null;
-  /** The side keys (`sideKey`): a Registration's or a team's, null while not known. */
-  redSideId: string | null;
-  blueSideId: string | null;
-  redTeamId: string | null;
-  blueTeamId: string | null;
   currentRound: number;
   tournamentId: string;
   organizationId: string;
@@ -171,15 +166,11 @@ export class ProtestsService {
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Match ${matchId} not found`);
     const row = data as unknown as BoutEmbed;
-    const sides = sidesOf(row);
     return {
       id: row['id'] as string,
       status: (row['status'] as string | null) ?? null,
       lockedAt: (row['locked_at'] as string | null) ?? null,
-      redSideId: sides.red,
-      blueSideId: sides.blue,
-      redTeamId: (row['red_team_id'] as string | null) ?? null,
-      blueTeamId: (row['blue_team_id'] as string | null) ?? null,
+      ...sideKindsOf(row),
       currentRound: (row['current_round'] as number | null) ?? 1,
       tournamentId: row.phases.tournament_id,
       organizationId: row.phases.tournaments.events.organization_id,

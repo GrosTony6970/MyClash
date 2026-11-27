@@ -78,7 +78,7 @@
     "apps/api/src/modules/matches/bout-sides.ts": {
       "verdict": "side-key",
       "hits": 2,
-      "why": "builds each side with `sideKey` from the Registration and team columns (`:21`-`:22`)"
+      "why": "builds each side with `sideKey` from the Registration and team columns (`:22`-`:23`)"
     },
     "apps/api/src/modules/matches/bracket-slot-sides.ts": {
       "verdict": "side-key",
@@ -159,7 +159,7 @@
     "apps/api/src/modules/matches/named-side.ts": {
       "verdict": "side-key",
       "hits": 5,
-      "why": "the one owner of the side a forfeit, a card or a protest names: from exactly one of its two fields, a Registration or a team (`:21`-`:29`), judged a side of the bout by its key (`sidesOf`) and its kind (`:42`-`:61`)"
+      "why": "the one owner of the side a forfeit, a card or a protest names: from exactly one of its two fields, a Registration or a team (`:27`-`:35`), judged a side of the bout by its key (`sidesOf`) and its kind (`:46`-`:65`)"
     },
     "apps/api/src/modules/matches/reopen-match-columns.ts": {
       "verdict": "no-side-read",
@@ -224,7 +224,7 @@
     "apps/api/src/modules/penalties/penalties.service.ts": {
       "verdict": "side-key",
       "hits": 23,
-      "why": "the card door judges its side with `named-side.ts` against the bout's `sidesOf` keys (`:960`-`:961`), writes it in the column of its kind (`:1002`), and keys the pad's priors by side (`:1380`, `:1398`); a team black card forfeits through `team-black-card.ts`. The Registration reads left are a Fighter's alone, never reached by a team (ruling 972): the Tournament count of black cards, the second black card review and the status settle"
+      "why": "the card door judges its side with `named-side.ts` (`:959`-`:960`) against the bout's side keys and teams from `sideKindsOf` (`:1482`), writes it in the column of its kind (`:1001`), and keys the pad's priors by side (`:1379`, `:1397`); a team black card forfeits through `team-black-card.ts`. The Registration reads left are a Fighter's alone, never reached by a team (ruling 972): the Tournament count of black cards, the second black card review and the status settle"
     },
     "apps/api/src/modules/penalties/second-black-card-review.ts": {
       "verdict": "individual-only",
@@ -340,7 +340,7 @@
     "apps/api/src/modules/protests/protests.service.ts": {
       "verdict": "side-key",
       "hits": 2,
-      "why": "the protest door judges its side with `named-side.ts` against the bout's `sidesOf` keys and kind, so a side still null on the bout is refused (`:151`-`:161`), and writes it in the column of its kind (`:100`); the two reads left are the bout row's team twins (`:181`-`:182`)"
+      "why": "the protest door judges its side with `named-side.ts` against the bout's side keys and teams from `sideKindsOf` (`:173`), so a side still null on the bout is refused (`:146`-`:156`), and writes it in the column of its kind (`:95`); the two hits are the Registration columns of the bout's read (`:24`)"
     },
     "apps/api/src/modules/referees/assignment-board.service.ts": {
       "verdict": "not-yet",
@@ -988,19 +988,11 @@
     },
     "apps/api/src/modules/matches/named-side.ts": {
       "count": 2,
-      "why": "`sides.red` / `sides.blue` come from `sidesOf` (bout-sides.ts), which builds each with `sideKey` (`:45`-`:46`)"
-    },
-    "apps/api/src/modules/penalties/penalties.service.ts": {
-      "count": 2,
-      "why": "`sides.red` / `sides.blue` come from `sidesOf` (bout-sides.ts), which builds each with `sideKey` (`:1486`-`:1487`)"
+      "why": "`sides.red` / `sides.blue` come from `sidesOf` (bout-sides.ts), which builds each with `sideKey` (`:49`-`:50`)"
     },
     "apps/api/src/modules/persons/public-schedule.service.ts": {
       "count": 3,
       "why": "1c: a person's schedule judges their own bout by Registration (`:387`-`:389`); personal schedule of named members is 1c"
-    },
-    "apps/api/src/modules/protests/protests.service.ts": {
-      "count": 2,
-      "why": "`sides.red` / `sides.blue` come from `sidesOf` (bout-sides.ts), which builds each with `sideKey` (`:179`-`:180`)"
     },
     "apps/api/src/modules/staff/staff.service.ts": {
       "count": 2,
