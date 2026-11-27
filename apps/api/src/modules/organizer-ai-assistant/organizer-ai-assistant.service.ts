@@ -284,13 +284,15 @@ export class OrganizerAIAssistantService {
 
     const validation = this.validateActions(draft.draft_type, draft.proposed_actions_json);
     if (!validation.ok) throw new BadRequestException(validation.errors.join('; '));
+    await this.claimDraft(eventId, draftId, actorUserId);
 
     // NOTE: applyAction dispatches to separate services (createTournament,
     // generatePools, …) that each write via stateless PostgREST calls, so a
     // single DB transaction can't span them. Instead of leaving a mid-loop
-    // failure silently 'ready' (a retry would re-apply the already-applied
-    // actions and duplicate them), we mark the draft 'failed' with how far it
-    // got — an explicit, non-retryable state the organizer can inspect.
+    // failure reading 'applied' (the claim's status) or 'ready' (a retry would
+    // re-apply the already-applied actions and duplicate them), we mark the
+    // draft 'failed' with how far it got — an explicit, non-retryable state the
+    // organizer can inspect.
     const total = draft.proposed_actions_json.length;
     const appliedResults = [];
     try {
@@ -317,16 +319,6 @@ export class OrganizerAIAssistantService {
       throw err;
     }
 
-    await this.supabase.service
-      .from('organizer_ai_assistant_drafts')
-      .update({
-        status: 'applied',
-        applied_at: new Date().toISOString(),
-        applied_by_user_id: actorUserId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', draftId);
-
     await this.audit(actorUserId, eventId, 'event.ai_assistant_draft_applied', draftId, {
       draftType: draft.draft_type,
       actionCount: draft.proposed_actions_json.length,
@@ -335,6 +327,35 @@ export class OrganizerAIAssistantService {
     });
 
     return { id: draftId, status: 'applied', appliedResults };
+  }
+
+  /**
+   * Ruling 996: a draft applies once. Marie has the page open in two tabs and presses Apply in
+   * both a second apart. Both reads find the draft `ready`, so the `ready` check alone let the
+   * actions run twice. The claim is one conditional write: only one Apply still finds the row
+   * `ready`, and the other refuses before it runs any action.
+   *
+   * The window: the status CHECK (0031) has no in-between value, so the claim writes `applied`
+   * at once. From the claim until the last action ends, the row reads `applied` while its
+   * actions still run. A failed action turns it `failed` (`applyDraft`'s catch).
+   */
+  private async claimDraft(eventId: string, draftId: string, actorUserId: string) {
+    const now = new Date().toISOString();
+    const { data, error } = await this.supabase.service
+      .from('organizer_ai_assistant_drafts')
+      .update({
+        status: 'applied',
+        applied_at: now,
+        applied_by_user_id: actorUserId,
+        updated_at: now,
+      })
+      .eq('id', draftId)
+      .eq('event_id', eventId)
+      .eq('status', 'ready')
+      .select('id')
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw draftClosed('This draft is already applied, being applied, or rejected.');
   }
 
   private async applyAction(eventId: string, actorUserId: string, action: Record<string, unknown>) {
