@@ -244,6 +244,9 @@ describe('apply_referee_assignment, two applies of one Event at once', () => {
     // A token the first write does not stale: the crew in this world stays Jean's.
     const second = apply(seal());
     await vi.waitFor(() => expect(setRefereeRoleAssignment).toHaveBeenCalledTimes(1));
+    // The second apply passed its gate before the lock: its app-name read, which follows that
+    // gate, ran. So only the gate inside the lock can see the change below.
+    expect(getClient).toHaveBeenCalledTimes(2);
     change();
     land();
     expect(await first).toMatchObject({ result: 'Done' });
