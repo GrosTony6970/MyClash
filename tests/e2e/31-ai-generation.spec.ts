@@ -329,7 +329,7 @@ test.describe('AI generation', () => {
     // the deterministic tournament/phase/schedule writers, which 20-schedule
     // and 02-create-tournament already own. What IS asserted is the gate.
     const apply = await api.post(`events/${eventId}/ai-assistant/drafts/${draft.id}/apply`);
-    expect(apply.status(), 'only ready drafts may be applied').toBe(400);
+    expect(apply.status(), 'a rejected draft is closed').toBe(409);
   });
 
   test('fighter insight: own key, own data, own decision to publish', async ({ request }) => {

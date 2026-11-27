@@ -149,7 +149,7 @@ test.describe('AI organiser tools', () => {
 
     // Applying twice must not duplicate it — the draft is spent.
     const again = await api.post(`events/${eventId}/ai-assistant/drafts/${draft.id}/apply`);
-    expect(again.status(), 'an applied draft is no longer ready').toBe(400);
+    expect(again.status(), 'an applied draft is closed').toBe(409);
   });
 
   test('organiser chat: a proposed action is confirmed, and another is dismissed', async ({

@@ -1,25 +1,36 @@
 import { ConflictException } from '@nestjs/common';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { mockSupabase, selectsFor, writesTo } from '../../common/testing/supabase-chain';
-import { mockSupabaseFrom, resetHarness, service } from './organizer-ai-assistant.harness';
+import {
+  mockGeneratePools,
+  mockSupabaseFrom,
+  resetHarness,
+  service,
+} from './organizer-ai-assistant.harness';
 
 const DRAFTS = 'organizer_ai_assistant_drafts';
 const ACTIONS = [{ kind: 'generate_pools', tournamentId: 't-1', poolCount: 4 }];
 
-const draftRow = (status: string) => ({
+/** A draft whose Apply claimed it, ran its first action and failed on the next. */
+const PARTLY_APPLIED = { status: 'failed', applied_at: '2026-11-27T09:00:00.000Z' };
+
+/** The row in a given state: a status, or a status with the columns an Apply wrote. */
+type DraftState = string | { status: string; applied_at?: string };
+
+const draftRow = (state: DraftState) => ({
   id: 'draft-1',
   event_id: 'event-1',
   draft_type: 'pool_plan',
-  status,
   proposed_actions_json: ACTIONS,
   events: { organization_id: 'org-1' },
+  ...(typeof state === 'string' ? { status: state } : state),
 });
 
 /**
  * The drafts as the read finds them (`before`), then as the write finds them (`then`). The two
  * differ when another tab closed the draft between the service's two requests.
  */
-function drafts(before: string, then = before) {
+function drafts(before: DraftState, then = before) {
   const read = mockSupabase({ [DRAFTS]: { rows: [draftRow(before)] } });
   const write = mockSupabase({
     [DRAFTS]: { rows: [draftRow(then)] },
@@ -81,6 +92,7 @@ describe('OrganizerAIAssistantService.updateDraft', () => {
       { method: 'eq', args: ['id', 'draft-1'] },
       { method: 'eq', args: ['event_id', 'event-1'] },
       { method: 'in', args: ['status', ['draft', 'ready', 'failed']] },
+      { method: 'is', args: ['applied_at', null] },
     ]);
     expect(selectsFor(write.from, DRAFTS)).toEqual(['*']);
   });
@@ -96,5 +108,62 @@ describe('OrganizerAIAssistantService.updateDraft', () => {
       }),
     ).rejects.toMatchObject(refusal('This draft is already applied or rejected.'));
     expect(writesTo(write, 'audit_log')).toEqual([]);
+  });
+});
+
+/**
+ * The same hole, through a failed Apply. Marie applies a draft that creates two Tournaments; the
+ * first is created, the second fails, and the draft reads `failed` ("Partially applied 1/2…"). An
+ * edit back to `ready` and a second Apply created the first Tournament again. The claim's
+ * `applied_at` stays on the row: a draft whose Apply started is closed whatever its status.
+ */
+describe('a draft whose Apply started and then failed', () => {
+  beforeEach(resetHarness);
+
+  it('refuses new actions, and writes nothing', async () => {
+    const { read, write } = drafts(PARTLY_APPLIED);
+
+    await expect(
+      service().updateDraft('event-1', 'draft-1', 'user-1', {
+        proposedActions: ACTIONS,
+        status: 'ready',
+      }),
+    ).rejects.toMatchObject(refusal('This draft was partly applied before it failed.'));
+    expect([...read.writes, ...write.writes]).toEqual([]);
+  });
+
+  it('refuses a second Apply, and runs no action', async () => {
+    const { read, write } = drafts(PARTLY_APPLIED);
+
+    await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toMatchObject(
+      refusal('This draft was partly applied before it failed.'),
+    );
+    expect(mockGeneratePools).not.toHaveBeenCalled();
+    expect([...read.writes, ...write.writes]).toEqual([]);
+  });
+
+  it('refuses an edit when the Apply started and failed after the read', async () => {
+    const { write } = drafts('ready', PARTLY_APPLIED);
+
+    await expect(
+      service().updateDraft('event-1', 'draft-1', 'user-1', {
+        proposedActions: ACTIONS,
+        status: 'ready',
+      }),
+    ).rejects.toMatchObject(refusal('This draft is already applied or rejected.'));
+    expect(writesTo(write, 'audit_log')).toEqual([]);
+  });
+
+  it('leaves a draft that failed the shape check open to new actions', async () => {
+    // Never applied: no `applied_at`.
+    const { write } = drafts('failed');
+
+    await service().updateDraft('event-1', 'draft-1', 'user-1', {
+      proposedActions: ACTIONS,
+      status: 'ready',
+    });
+
+    const [update] = writesTo(write, DRAFTS);
+    expect(update?.row).toMatchObject({ status: 'ready', proposed_actions_json: ACTIONS });
   });
 });

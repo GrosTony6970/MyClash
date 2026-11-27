@@ -35,6 +35,19 @@ function draftClosed(message: string): ConflictException {
   return new ConflictException({ code: 'draft_closed', message });
 }
 
+/**
+ * Why a draft is closed, or null while it is open. A draft whose Apply started is closed too,
+ * even when an action then failed: the claim set `applied_at`, the failure keeps it, and the
+ * row reads `failed` ("Partially applied 1/2…"). Its first actions ran, so an edit back to
+ * `ready` and a second Apply would run them again (the Tournament created twice). A draft that
+ * failed the shape check never ran: it has no `applied_at` and stays open.
+ */
+function closedReason(draft: Pick<DraftRow, 'status' | 'applied_at'>): string | null {
+  if (!OPEN_STATUSES.includes(draft.status)) return `This draft is already ${draft.status}.`;
+  if (draft.applied_at) return 'This draft was partly applied before it failed.';
+  return null;
+}
+
 interface EventRow {
   id: string;
   organization_id: string;
@@ -55,6 +68,7 @@ interface DraftRow {
   error?: string | null;
   conversation_id?: string | null;
   source?: string | null;
+  applied_at?: string | null;
   created_at?: string;
   updated_at?: string;
   events?: { organization_id?: string | null } | null;
@@ -236,9 +250,8 @@ export class OrganizerAIAssistantService {
   ) {
     const draft = await this.getDraftRow(eventId, draftId);
     await this.assertDraftAccess(draft, actorUserId);
-    if (!OPEN_STATUSES.includes(draft.status)) {
-      throw draftClosed(`This draft is already ${draft.status}.`);
-    }
+    const closed = closedReason(draft);
+    if (closed) throw draftClosed(closed);
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (dto.summary !== undefined) updates['summary'] = dto.summary;
@@ -264,6 +277,7 @@ export class OrganizerAIAssistantService {
       // The read above and this write are two requests: an Apply or a Reject in another tab
       // may close the draft between them. The write then matches no row and refuses.
       .in('status', OPEN_STATUSES)
+      .is('applied_at', null)
       .select('*')
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
@@ -280,6 +294,8 @@ export class OrganizerAIAssistantService {
   async applyDraft(eventId: string, draftId: string, actorUserId: string) {
     const draft = await this.getDraftRow(eventId, draftId);
     await this.assertDraftAccess(draft, actorUserId);
+    const closed = closedReason(draft);
+    if (closed) throw draftClosed(closed);
     if (draft.status !== 'ready') throw new BadRequestException('Only ready drafts can be applied');
 
     const validation = this.validateActions(draft.draft_type, draft.proposed_actions_json);

@@ -103,4 +103,27 @@ describe('OrganizerAIAssistantService.applyDraft, twice at once', () => {
     ]);
     expect(claim.select.mock.calls).toEqual([['id']]);
   });
+
+  it("keeps the claim's applied_at when an action fails, so the draft stays closed", async () => {
+    // `applied_at` is what closes a partly applied draft (`closedReason`); a failure write that
+    // cleared it would reopen the draft to an edit back to `ready`.
+    mockGeneratePools.mockRejectedValue(new Error('pool phase exists'));
+    const { row, writes } = oneDraft();
+
+    await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toThrow(
+      'pool phase exists',
+    );
+
+    expect(row['applied_at']).toEqual(expect.any(String));
+    const [, failure] = writes() as [Chain, Chain];
+    expect(failure.update.mock.calls).toEqual([
+      [
+        {
+          status: 'failed',
+          error: 'Partially applied 0/1 action(s) before failing: pool phase exists',
+          updated_at: expect.any(String),
+        },
+      ],
+    ]);
+  });
 });
