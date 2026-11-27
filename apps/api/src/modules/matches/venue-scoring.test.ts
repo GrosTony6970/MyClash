@@ -264,6 +264,42 @@ describe('MatchesService.editExchange — what an edited venues hit stores', () 
   });
 });
 
+describe('MatchesService.getMatchSummary — the public bout page', () => {
+  it('shows a points-cap bout whose copy says venues in points, as it is scored', async () => {
+    const supabase = mockSupabase({
+      vw_tournament_query_matches: {
+        rows: [{ match_id: 'm1', status: 'running', tournament_id: 't1', event_id: 'event-1' }],
+      },
+      tournaments: { rows: [{ id: 't1', weapon: 'longsword' }] },
+      events: { rows: [{ id: 'event-1', timezone: 'UTC' }] },
+      matches: {
+        rows: [
+          {
+            id: 'm1',
+            lice_id: null,
+            match_rules: rulesOf(venuesFormat({ pointCap: 7 }), 'Generic_PointsCap', '1.1.0'),
+          },
+        ],
+      },
+      referee_assignments: { rows: [] },
+    });
+    const service = new MatchesService(
+      supabase as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      undefined,
+      undefined,
+      builtInResolver(),
+    );
+
+    const summary = await service.getMatchSummary('m1');
+
+    expect(summary.matchFormat).toMatchObject({ scoringUnit: 'points', pointCap: 7 });
+  });
+});
+
 describe('a voided venue', () => {
   it('re-decides the bout: a venue_limit end is decided on the board', () => {
     const outcome = correctionOutcome({

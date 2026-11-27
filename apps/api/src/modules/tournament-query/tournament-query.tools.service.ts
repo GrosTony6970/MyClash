@@ -332,7 +332,7 @@ export class TournamentQueryToolsService {
    */
   private async codesOf(matchIds: string[]): Promise<Map<string, string>> {
     try {
-      const summaries = await matchSummaries(this.supabase.service, matchIds);
+      const summaries = await matchSummaries(this.supabase.service, matchIds, null);
       return new Map([...summaries].map(([id, summary]) => [id, summary.roundCode]));
     } catch (err) {
       const why = err instanceof Error ? err.message : String(err);

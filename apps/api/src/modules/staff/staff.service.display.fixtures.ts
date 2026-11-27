@@ -7,6 +7,7 @@
 // projector may be shown, rulings 82 and 89).
 
 import { StaffService } from './staff.service';
+import type { RulesetResolver } from '../matches/ruleset-resolver.service';
 import { mockSupabase, type SupabaseRow } from '../../common/testing/supabase-chain';
 
 export const LICE = 'lice-1';
@@ -18,9 +19,15 @@ export const at = (hour: number) => `2026-05-05T${String(hour).padStart(2, '0')}
 /** The hall projector: no login, no staff cookie. */
 export const ANON = { userId: 'anonymous', staff: null };
 
-export function serviceOn(rows: readonly SupabaseRow[]) {
+export function serviceOn(rows: readonly SupabaseRow[], rulesets?: RulesetResolver) {
   const supabase = mockSupabase({ matches: { rows } });
-  const service = new StaffService(supabase as never, {} as never, {} as never, {} as never);
+  const service = new StaffService(
+    supabase as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    rulesets,
+  );
   return { service, from: supabase.from };
 }
 

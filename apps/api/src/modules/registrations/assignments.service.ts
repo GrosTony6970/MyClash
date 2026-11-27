@@ -88,7 +88,7 @@ async function namesOfBouts(
   // Tournament alone, and the log says why.
   let summaries: Awaited<ReturnType<typeof matchSummaries>>;
   try {
-    summaries = await matchSummaries(db, ids);
+    summaries = await matchSummaries(db, ids, null);
   } catch (err) {
     const why = err instanceof Error ? err.message : String(err);
     roundLogger.warn(`The names of ${ids.length} bout(s) were not read: ${why}`);

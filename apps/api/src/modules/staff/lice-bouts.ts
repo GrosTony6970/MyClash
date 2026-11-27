@@ -61,6 +61,7 @@ export async function liceBouts(
   const summaries = await matchSummaries(
     db,
     rows.map((row) => row['id'] as string),
+    rulesets ?? null,
   );
   return {
     liceId: (lice as { id: string }).id,

@@ -8,6 +8,7 @@ import {
 } from '../../common/testing/supabase-chain';
 import { matchSummaries } from './match-summaries';
 import { SUMMARY_BOUTS, summarySeed } from './match-summaries.fixtures';
+import { builtInResolver } from './built-in-resolver.fixtures';
 
 /**
  * The header summary of a bout, for one bout and for many. The values below
@@ -17,7 +18,10 @@ import { SUMMARY_BOUTS, summarySeed } from './match-summaries.fixtures';
 describe('matchSummaries', () => {
   const read = async (ids: string[] = SUMMARY_BOUTS) => {
     const supabase = mockSupabase(summarySeed());
-    return { summaries: await matchSummaries(supabase.service as never, ids), from: supabase.from };
+    return {
+      summaries: await matchSummaries(supabase.service as never, ids, null),
+      from: supabase.from,
+    };
   };
 
   it('names a Pool bout on a piste, with its rounds and its referee', async () => {
@@ -135,7 +139,7 @@ describe('matchSummaries', () => {
       phases: { rows: [{ id: 'phase-de', config_json: { mainBracketSize: 8 } }] },
     });
 
-    const summaries = await matchSummaries(supabase.service as never, ['bracket']);
+    const summaries = await matchSummaries(supabase.service as never, ['bracket'], null);
 
     // Round 2 of eight is the semi-final. With no size it is "round 2".
     expect(summaries.get('bracket')).toMatchObject({ roundCode: 'SBR-B-SF-M2', roundToken: 'SF' });
@@ -149,11 +153,11 @@ describe('matchSummaries', () => {
 
     // The double refuses a table that is not seeded: these reads are not made.
     const { pools: _pools, phases: _phases, ...noPoolNoPhase } = summarySeed();
-    const bare = await matchSummaries(mockSupabase(noPoolNoPhase).service as never, ['bare']);
+    const bare = await matchSummaries(mockSupabase(noPoolNoPhase).service as never, ['bare'], null);
     expect(bare.has('bare')).toBe(true);
 
     const { lices: _lices, ...noPiste } = summarySeed();
-    const bracket = await matchSummaries(mockSupabase(noPiste).service as never, ['bracket']);
+    const bracket = await matchSummaries(mockSupabase(noPiste).service as never, ['bracket'], null);
     expect(bracket.has('bracket')).toBe(true);
   });
 
@@ -166,7 +170,7 @@ describe('matchSummaries', () => {
       'match_id, match_number_label, status, pool_id, pool_name, bracket_round, swiss_round, red_name, blue_name, red_club, blue_club, tournament_id, event_id, phase_id, phase_type',
     ]);
     expect(selectsFor(from, 'matches')).toEqual([
-      'id, lice_id, current_round, red_round_wins, blue_round_wins, rounds_json, awaiting_round_advance, match_rules(ruleset_config)',
+      'id, lice_id, current_round, red_round_wins, blue_round_wins, rounds_json, awaiting_round_advance, match_rules(ruleset_code, ruleset_version, ruleset_config)',
     ]);
     // The format is the bout's copy's: the Tournament's of now is not read.
     expect(selectsFor(from, 'tournaments')).toEqual(['id, weapon, name, scoring_config_json']);
@@ -180,7 +184,7 @@ describe('matchSummaries', () => {
   it('the summary says eventOver true for a completed or archived Event, false otherwise', async () => {
     const over = async (status: string) => {
       const seed = { ...summarySeed(), events: { rows: [{ id: 'event-1', status }] } };
-      const summaries = await matchSummaries(mockSupabase(seed).service as never, ['pool']);
+      const summaries = await matchSummaries(mockSupabase(seed).service as never, ['pool'], null);
       return summaries.get('pool')?.eventOver;
     };
 
@@ -224,7 +228,7 @@ describe('matchSummaries', () => {
     );
     const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
 
-    const summaries = await matchSummaries(supabase.service as never, SUMMARY_BOUTS);
+    const summaries = await matchSummaries(supabase.service as never, SUMMARY_BOUTS, null);
 
     expect(summaries.get('bracket')).toMatchObject({ matchFormat: null, bestOf: 1 });
     expect(summaries.get('pool')?.matchFormat?.bestOf).toEqual({ pool: 3, bracket: 5, finals: 5 });
@@ -233,6 +237,28 @@ describe('matchSummaries', () => {
       expect.anything(),
     );
     logged.mockRestore();
+  });
+
+  // Generic_PointsCap offers no venues: its bouts score in points (`scoredMatchFormat`), so the
+  // public bout page and the pad must not count venues over a points score.
+  it("gives a bout the format it is scored with, its ruleset's strip applied", async () => {
+    const supabase = mockSupabase(
+      withBout('pool', (row) => ({
+        ...row,
+        match_rules: {
+          ruleset_code: 'Generic_PointsCap',
+          ruleset_version: '1.1.0',
+          ruleset_config: { matchFormat: { scoringUnit: 'venues', pointCap: 7 } },
+        },
+      })),
+    );
+
+    const summaries = await matchSummaries(supabase.service as never, ['pool'], builtInResolver());
+
+    expect(summaries.get('pool')?.matchFormat).toMatchObject({
+      scoringUnit: 'points',
+      pointCap: 7,
+    });
   });
 
   // Ruling E: a bout keeps the format it started under, and the public bout page shows it. The
@@ -253,7 +279,7 @@ describe('matchSummaries', () => {
       },
     });
 
-    const summaries = await matchSummaries(supabase.service as never, ['pool']);
+    const summaries = await matchSummaries(supabase.service as never, ['pool'], null);
 
     expect(summaries.get('pool')?.bestOf).toBe(3);
     expect(summaries.get('pool')?.matchFormat?.bestOf).toEqual({ pool: 3, bracket: 5, finals: 5 });
@@ -265,7 +291,7 @@ describe('matchSummaries', () => {
     const supabase = mockSupabase(withBout('swiss', ({ match_rules: _copy, ...row }) => row));
     const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
 
-    const summaries = await matchSummaries(supabase.service as never, SUMMARY_BOUTS);
+    const summaries = await matchSummaries(supabase.service as never, SUMMARY_BOUTS, null);
 
     expect(summaries.get('swiss')).toMatchObject({
       matchFormat: null,
@@ -286,7 +312,7 @@ describe('matchSummaries', () => {
     const supabase = mockSupabase(withBout('swiss', () => ({ id: 'deleted-since' })));
     const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
 
-    const summaries = await matchSummaries(supabase.service as never, SUMMARY_BOUTS);
+    const summaries = await matchSummaries(supabase.service as never, SUMMARY_BOUTS, null);
 
     expect(summaries.get('swiss')).toMatchObject({ matchFormat: null, bestOf: 1 });
     expect(logged).not.toHaveBeenCalled();
@@ -301,7 +327,7 @@ describe('matchSummaries', () => {
       tournaments: { data: null, error: { message: 'connection lost' } },
     });
 
-    await expect(matchSummaries(supabase.service as never, SUMMARY_BOUTS)).rejects.toThrow(
+    await expect(matchSummaries(supabase.service as never, SUMMARY_BOUTS, null)).rejects.toThrow(
       'tournaments: connection lost',
     );
   });
@@ -313,7 +339,7 @@ describe('matchSummaries', () => {
       vw_tournament_query_matches: { data: null, error: { message: 'connection lost' } },
     });
 
-    const failure = await matchSummaries(supabase.service as never, ['pool']).catch(
+    const failure = await matchSummaries(supabase.service as never, ['pool'], null).catch(
       (error: unknown) => error,
     );
     expect(failure).toEqual(new Error('vw_tournament_query_matches: connection lost'));

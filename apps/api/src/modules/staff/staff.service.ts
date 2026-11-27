@@ -34,8 +34,8 @@ import {
 } from '@myclash/types';
 import type { PhaseType, StaffRole } from '@myclash/types';
 import { getEffectiveBestOf } from '@myclash/rulesets';
-import { boutMatchFormat } from '../matches/match-summaries';
-import type { Match as RulesetMatch } from '@myclash/rulesets';
+import { boutMatchFormat, shownRulesetOf } from '../matches/match-summaries';
+import type { Match as RulesetMatch, Ruleset } from '@myclash/rulesets';
 import type { FastifyRequest } from 'fastify';
 import {
   eventHidesFromPublic,
@@ -1513,7 +1513,7 @@ export class StaffService {
         //     populated eagerly at insert/link time.
         //   - match_rules: the bout's own copy of its rules, the only source of its match format
         //     (the Tournament's may be partial, and moves on after the bout starts).
-        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),phases(type,config_json,tournaments(id,name,weapon,scoring_config_json)),pools(id,name,sort_order),bracket_slots(round),swiss_rounds(round_number),match_rules(ruleset_config)',
+        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),phases(type,config_json,tournaments(id,name,weapon,scoring_config_json)),pools(id,name,sort_order),bracket_slots(round),swiss_rounds(round_number),match_rules(ruleset_code,ruleset_version,ruleset_config)',
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -1549,7 +1549,9 @@ export class StaffService {
       reader,
     );
 
-    const base = this.mapDisplayMatch(data, { fightIndex, totalFightsInPool });
+    // The format is shown as the bout is scored: its ruleset's strips applied.
+    const ruleset = this.rulesets && (await shownRulesetOf(matchId, data, this.rulesets));
+    const base = this.mapDisplayMatch(data, { fightIndex, totalFightsInPool, ruleset });
     return {
       ...base,
       nextMatchId: nextMatch?.id ?? null,
@@ -1868,9 +1870,11 @@ export class StaffService {
 
   private mapDisplayMatch(
     match: Record<string, unknown>,
-    extras: { fightIndex: number | null; totalFightsInPool: number | null } = {
-      fightIndex: null,
-      totalFightsInPool: null,
+    extras: {
+      fightIndex: number | null;
+      totalFightsInPool: number | null;
+      /** The ruleset the bout's copy names (`shownRulesetOf`): none when it is not read. */
+      ruleset: Ruleset | undefined;
     },
   ) {
     type ClubsEmbed = { name?: string | null; logo_url?: string | null } | null;
@@ -1974,9 +1978,9 @@ export class StaffService {
     // too, so the scoreboards can count against the right time limit.
     const phaseType = phases?.type ?? null;
     // The bout's own copy, as the public bout page reads it; none that reads draws the
-    // scoreboard's default (`boutMatchFormat` logs why). Named: the pad also strips the doubles
-    // ceiling of a ruleset that has none (`scoredMatchFormat`); this and the bout page do not.
-    const boutFormat = boutMatchFormat(String(match['id'] ?? ''), match);
+    // scoreboard's default (`boutMatchFormat` logs why). As the pad's: through its ruleset's
+    // strips (`scoredMatchFormat`), so a Points cap bout shows points and no doubles ceiling.
+    const boutFormat = boutMatchFormat(String(match['id'] ?? ''), match, extras.ruleset);
     const displayMatchFormat = boutFormat ?? DEFAULT_MATCH_FORMAT_CONFIG;
     const effectiveBestOf = getEffectiveBestOf(
       {

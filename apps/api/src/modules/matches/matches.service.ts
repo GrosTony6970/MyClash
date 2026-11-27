@@ -146,7 +146,9 @@ export class MatchesService {
    * Public endpoint — no auth required (same as getMatch).
    */
   async getMatchSummary(matchId: string) {
-    const summary = (await matchSummaries(this.supabase.service, [matchId])).get(matchId);
+    const summary = (
+      await matchSummaries(this.supabase.service, [matchId], this.rulesets ?? null)
+    ).get(matchId);
     if (!summary) throw new NotFoundException(`Match ${matchId} not found`);
     return summary;
   }
