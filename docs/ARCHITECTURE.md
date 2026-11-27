@@ -492,7 +492,7 @@ FULL`, the `supabase_realtime` publication).
 From `match_events` and `exchanges`:
 
 - **Match duration (active)**: sum of intervals between `start`/`resume` and `halt`/`end`. Persisted as `matches.duration_active_ms` when the `end` clock action fires.
-- **Match duration (total)**: `ended_at - started_at`. Persisted as `matches.duration_total_ms` when the `end` clock action fires.
+- **Match duration (total)**: `ended_at` minus the clock's `startedAt`, the origin of the pad's "Temps total" (below), so a referee's clock Reset restarts it too; not `matches.started_at`, which keeps the bout's first Start. Persisted as `matches.duration_total_ms` when the `end` clock action fires.
 - **Judging overhead**: `duration_total_ms − duration_active_ms` — time spent outside active fighting (deliberation, cards, border calls). Available to organisers via the match list (`GET /api/v1/matches?phaseId=...`).
 - **Time between exchanges**: `exchanges.duration_since_prev_ms`, computed at insert.
 - **Currently running matches**: `matches WHERE status='running'`, indexed for the live view.

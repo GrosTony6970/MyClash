@@ -158,7 +158,7 @@ interface ClockStep {
 // LADDER, not the scores. The Event's status is for a press sent late, and the bout's copies of
 // its rules for a Start that names the copy its pad showed (`startCopyOf`).
 export const BOUT_COLUMNS =
-  'id, status, locked_at, started_at, match_rules_id, earlier_rules_ids, rounds_json, current_round, ' +
+  'id, status, locked_at, match_rules_id, earlier_rules_ids, rounds_json, current_round, ' +
   'red_registration_id, blue_registration_id, winner_registration_id, ' +
   'red_score, blue_score, match_number_label, awaiting_round_advance, back_in_play_at, ' +
   'phases(type, tournaments(events(status))), ' +
@@ -654,9 +654,11 @@ export class ClockService {
     if (current.status === 'running' && current.runningFrom) {
       finalActiveMs += new Date(now).getTime() - new Date(current.runningFrom).getTime();
     }
-    const matchStartedAt = (match as { started_at?: string | null }).started_at;
-    const durationTotalMs = matchStartedAt
-      ? new Date(now).getTime() - new Date(matchStartedAt).getTime()
+    // From the origin of the pad's TOTAL TIME, not `matches.started_at`: the referee's clock
+    // Reset starts it again, so the saved total is the one the referee saw (operator,
+    // 2026-11-27). Null when the clock was reset and ended with no Resume between: no time ran.
+    const durationTotalMs = current.startedAt
+      ? new Date(now).getTime() - new Date(current.startedAt).getTime()
       : null;
     const write = this.supabase.service
       .from('matches')
