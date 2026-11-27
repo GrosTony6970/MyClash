@@ -31,7 +31,13 @@ vi.mock('@/components/organizer-event-context', () => ({
   useOrganizerSelectedEvent: () => ({ events: [{ id: 'ev1', status: 'running' }] }),
 }));
 vi.mock('./_tabs/MatchesTab', () => ({ MatchesTab: () => null }));
-vi.mock('./_tabs/StandingsTab', () => ({ StandingsTab: () => null }));
+const standingsTab = vi.hoisted(() => ({ teams: undefined as boolean | undefined }));
+vi.mock('./_tabs/StandingsTab', () => ({
+  StandingsTab: (props: { teams: boolean }) => {
+    standingsTab.teams = props.teams;
+    return null;
+  },
+}));
 vi.mock('./_tabs/RefereesTab', () => ({ RefereesTab: () => null }));
 vi.mock('@myclash/api-client', async (importOriginal) => ({
   ...(await importOriginal<typeof ApiClient>()),
@@ -101,6 +107,7 @@ beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   vi.mocked(apiRequest).mockReset();
   window.location.hash = '';
+  standingsTab.teams = undefined;
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -213,6 +220,14 @@ describe('Pools page: a team Tournament', () => {
       body: undefined,
     });
   });
+
+  // Its tables and files say Team from the Tournament's kind: an empty Pool has no row to say it.
+  it('tells the standings tab its entrants are teams', async () => {
+    serve('team', [{ ...teamSeat('team-paris', 'Paris Rapiers'), seed: 1 }], []);
+    window.location.hash = '#standings';
+    await openPage();
+    expect(standingsTab.teams).toBe(true);
+  });
 });
 
 describe('Pools page: an individual Tournament is unchanged', () => {
@@ -251,5 +266,12 @@ describe('Pools page: an individual Tournament is unchanged', () => {
       body: { registrationId: 'reg-anna' },
     });
     expect(page()).toContain('1 fighter');
+  });
+
+  it('tells the standings tab its entrants are Fighters', async () => {
+    serve('individual', [{ ...fighterSeat('reg-ben', 'Ben Morel'), seed: 1 }], []);
+    window.location.hash = '#standings';
+    await openPage();
+    expect(standingsTab.teams).toBe(false);
   });
 });

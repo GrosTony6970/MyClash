@@ -61,7 +61,7 @@ beforeEach(async () => {
   await act(async () => {
     root.render(
       <I18nProvider locale="fr">
-        <StandingsTab tournamentId="t-1" poolPhaseId="ph-1" />
+        <StandingsTab tournamentId="t-1" poolPhaseId="ph-1" teams={false} />
       </I18nProvider>,
     );
   });

@@ -110,13 +110,14 @@ export default function FinalRankingPage() {
   );
 
   // The columns of the file and the print, in the reader's language (O20).
-  const headers: RankingHeaders = [
-    t('organizer.csvColumns.rank'),
-    ranksTeams ? t('organizer.csvColumns.team') : t('organizer.csvColumns.fighter'),
-    t('organizer.csvColumns.club'),
-    t('organizer.csvColumns.result'),
-    t('organizer.csvColumns.poolScore'),
-  ];
+  // A team has no club: a team ranking's file and print have no Club column.
+  const headers: RankingHeaders = {
+    rank: t('organizer.csvColumns.rank'),
+    entrant: ranksTeams ? t('organizer.csvColumns.team') : t('organizer.csvColumns.fighter'),
+    club: ranksTeams ? null : t('organizer.csvColumns.club'),
+    result: t('organizer.csvColumns.result'),
+    poolScore: t('organizer.csvColumns.poolScore'),
+  };
 
   function exportCsv(format: CsvFormat) {
     if (exportRows.length === 0) return;

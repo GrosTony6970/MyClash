@@ -40,6 +40,14 @@ const OVERALL = {
   rows: [teamRow(1, 'team-lyon', 'Lyon Blades'), teamRow(2, 'team-paris', 'Paris Rapiers')],
 };
 
+/** A team Tournament's Pools, none of which seats anybody yet: no row to read a kind from. */
+const EMPTY_BY_POOL = {
+  rulesetCode: 'TF_v1',
+  rulesetVersion: '1.0.0',
+  columns: OVERALL.columns,
+  pools: [{ poolId: 'p-1', poolName: 'Pool A', status: 'in_progress', rows: [] }],
+};
+
 let container: HTMLDivElement;
 let root: Root;
 const blobs: Blob[] = [];
@@ -56,11 +64,12 @@ beforeEach(() => {
   });
   vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
   vi.mocked(apiRequest).mockReset();
-  vi.mocked(apiRequest).mockImplementation(async (_base: string, path: string) =>
-    path.includes('pool-standings')
+  vi.mocked(apiRequest).mockImplementation(async (_base: string, path: string) => {
+    if (path.includes('mode=by-pool')) return { ok: true, data: EMPTY_BY_POOL } as never;
+    return path.includes('pool-standings')
       ? ({ ok: true, data: OVERALL } as never)
-      : ({ ok: true, data: {} } as never),
-  );
+      : ({ ok: true, data: {} } as never);
+  });
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -71,16 +80,30 @@ afterEach(() => {
   container.remove();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  window.location.hash = '';
 });
 
 async function open(locale: 'en' | 'fr') {
   await act(async () => {
     root.render(
       <I18nProvider locale={locale}>
-        <StandingsTab tournamentId="t-1" poolPhaseId="ph-1" />
+        <StandingsTab tournamentId="t-1" poolPhaseId="ph-1" teams />
       </I18nProvider>,
     );
   });
+}
+
+/** Opens the export menu named `label`, picks the standard file, and reads the file's text. */
+async function exportFile(label: string) {
+  const exportButton = [...container.querySelectorAll('button')].find(
+    (button) => button.textContent === `${label} ▾`,
+  );
+  await act(async () => exportButton!.click());
+  const item = [...container.querySelectorAll('[role="menuitem"]')].find((button) =>
+    button.textContent!.startsWith(fr.common.csvExport.standard),
+  ) as HTMLButtonElement;
+  await act(async () => item.click());
+  return new TextDecoder().decode(new Uint8Array(await blobs[0]!.arrayBuffer()).slice(3));
 }
 
 /** The header cells' text, the filter's label, its placeholder. */
@@ -102,17 +125,20 @@ describe('the standings words of a team Pool', () => {
     });
   }
 
-  it('head the file’s column "Équipe" for a French organiser', async () => {
+  // A team has no club: an always-empty Club column would say nothing.
+  it('head the file’s column "Équipe" for a French organiser, with no Club column', async () => {
     await open('fr');
-    const exportButton = [...container.querySelectorAll('button')].find(
-      (button) => button.textContent === `${fr.organizer.pools.standings.exportCsv} ▾`,
-    );
-    await act(async () => exportButton!.click());
-    const item = [...container.querySelectorAll('[role="menuitem"]')].find((button) =>
-      button.textContent!.startsWith(fr.common.csvExport.standard),
-    ) as HTMLButtonElement;
-    await act(async () => item.click());
-    const text = new TextDecoder().decode(new Uint8Array(await blobs[0]!.arrayBuffer()).slice(3));
-    expect(text.split('\r\n')[0]).toBe('Rang,Équipe,Club,Victoires,Statut');
+    const lines = (await exportFile(fr.organizer.pools.standings.exportCsv)).split('\r\n');
+    expect(lines[0]).toBe('Rang,Équipe,Victoires,Statut');
+    expect(lines[1]).toBe('1,Lyon Blades,2,En cours');
+    expect(lines[2]).toBe('2,Paris Rapiers,1,En cours');
+  });
+
+  // The Tournament's kind says it: no row of an empty Pool is there to.
+  it('head the file of Pools that seat nobody yet "Équipe", with no Club column', async () => {
+    window.location.hash = '#standings-by-pool';
+    await open('fr');
+    const text = await exportFile(fr.organizer.pools.standings.exportAllPools);
+    expect(text.split('\r\n')[0]).toBe('Rang,Équipe,Poule,Victoires,Statut');
   });
 });

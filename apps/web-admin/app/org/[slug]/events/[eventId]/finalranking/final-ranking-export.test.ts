@@ -7,7 +7,19 @@ import {
   type RankingHeaders,
 } from './final-ranking-export';
 
-const HEADERS: RankingHeaders = ['Rang', 'Combattant', 'Club', 'Résultat', 'Score de poule'];
+const HEADERS: RankingHeaders = {
+  rank: 'Rang',
+  entrant: 'Combattant',
+  club: 'Club',
+  result: 'Résultat',
+  poolScore: 'Score de poule',
+};
+/** A team ranking's titles: a team has no club, so no Club column. */
+const TEAM_HEADERS: RankingHeaders = { ...HEADERS, entrant: 'Équipe', club: null };
+const TEAM_ROWS: ExportRow[] = [
+  { rank: 1, fighter: 'Lyon Blades', club: '', result: 'Champion', poolScore: '4.00' },
+  { rank: 2, fighter: 'Paris Rapiers', club: '', result: 'Runner-up', poolScore: '' },
+];
 
 const ROWS: ExportRow[] = [
   { rank: 1, fighter: 'Emilie Ave', club: 'ECS', result: 'Champion', poolScore: '4.00' },
@@ -62,6 +74,13 @@ describe('rankingToCsv', () => {
     );
     expect(csv.slice(1).split('\r\n')[1]).toBe('3;A;C;Pools;-1,50');
   });
+
+  it('a team ranking has no Club column', () => {
+    const lines = rankingToCsv(TEAM_ROWS, TEAM_HEADERS, CSV_STANDARD).slice(1).split('\r\n');
+    expect(lines[0]).toBe('Rang,Équipe,Résultat,Score de poule');
+    expect(lines[1]).toBe('1,Lyon Blades,Champion,4.00');
+    expect(lines[2]).toBe('2,Paris Rapiers,Runner-up,');
+  });
 });
 
 describe('rankingToPrintHtml', () => {
@@ -78,5 +97,25 @@ describe('rankingToPrintHtml', () => {
     expect(html).toContain('A &lt;b&gt; &amp; &quot;x&quot;');
     // One header row + one row per entry.
     expect(html.match(/<tr>/g)?.length).toBe(rows.length + 1);
+  });
+
+  it('prints each column in order, the rank and the pool score right-aligned', () => {
+    const html = rankingToPrintHtml('Final', ROWS.slice(0, 1), HEADERS);
+    expect(html).toContain(
+      '<thead><tr><th>Rang</th><th>Combattant</th><th>Club</th><th>Résultat</th><th>Score de poule</th></tr></thead>',
+    );
+    expect(html).toContain(
+      '<tbody><tr><td class="r">1</td><td>Emilie Ave</td><td>ECS</td><td>Champion</td><td class="r">4.00</td></tr></tbody>',
+    );
+  });
+
+  it('prints a team ranking with no Club column', () => {
+    const html = rankingToPrintHtml('Final', TEAM_ROWS.slice(0, 1), TEAM_HEADERS);
+    expect(html).toContain(
+      '<thead><tr><th>Rang</th><th>Équipe</th><th>Résultat</th><th>Score de poule</th></tr></thead>',
+    );
+    expect(html).toContain(
+      '<tbody><tr><td class="r">1</td><td>Lyon Blades</td><td>Champion</td><td class="r">4.00</td></tr></tbody>',
+    );
   });
 });

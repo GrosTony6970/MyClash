@@ -32,6 +32,11 @@ vi.mock('@myclash/api-client', async (importOriginal) => ({
   ...(await importOriginal<typeof ApiClient>()),
   apiRequest: vi.fn(),
 }));
+/** The text of each CSV the page hands to the browser. */
+const downloads = vi.hoisted(() => [] as string[]);
+vi.mock('@/lib/csv-file', () => ({
+  downloadCsv: (_filename: string, text: string) => downloads.push(text),
+}));
 
 const team = (teamId: string, name: string, colour: string): BracketSideWire => ({
   sideId: teamId,
@@ -100,6 +105,7 @@ let root: Root;
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   vi.mocked(apiRequest).mockReset();
+  downloads.length = 0;
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -168,6 +174,32 @@ describe('Final ranking of a team Tournament', () => {
     expect(container.textContent).toContain(
       'Placement au tableau — les équipes éliminées au même tour sont départagées par leur score de poule.',
     );
+  });
+
+  /** Export CSV, then the standard file in its menu; the file's lines, after the byte-order mark. */
+  async function exportCsv(): Promise<string[]> {
+    const button = (text: string) =>
+      [...document.body.querySelectorAll('button, [role="menuitem"]')].find((b) =>
+        b.textContent?.startsWith(text),
+      ) as HTMLElement;
+    await act(async () => button('Export CSV').click());
+    await act(async () => button('Excel (English), other apps').click());
+    expect(downloads).toHaveLength(1);
+    return downloads[0]!.slice(1).split('\r\n');
+  }
+
+  // A team has no club: an always-empty Club column would say nothing.
+  it('exports a team ranking with no Club column', async () => {
+    await openPage('team');
+    const lines = await exportCsv();
+    expect(lines[0]).toBe('Rank,Team,Result,Pool score');
+    expect(lines[1]).toMatch(/^1,Alpha,/);
+  });
+
+  it('keeps the Club column in an individual ranking', async () => {
+    await openPage('individual');
+    const lines = await exportCsv();
+    expect(lines[0]).toBe('Rank,Fighter,Club,Result,Pool score');
   });
 
   it('keeps the fighters subtitle on an individual Tournament', async () => {

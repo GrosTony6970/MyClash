@@ -35,20 +35,25 @@ function formatStat(c: StandingsColumn, value: unknown, empty: string): string {
 }
 
 /**
- * The words that name a table's entrants: a team Pool's rows are teams (`kind`, from the API's
- * `sideLabel`), every other row a Fighter.
+ * The words that name a table's entrants: a team Tournament's are teams, an individual one's
+ * Fighters. Chosen by the Tournament's kind, never guessed from the rows: an empty team Pool has
+ * none, and its file was headed Fighter and Club. A team has no club
+ * (`@myclash/types/bracket-side`), so a team file has no Club column (`csvClub: null`): an
+ * always-empty column says nothing.
  */
-function entrantWords(rows: readonly PoolStandingsRow[]) {
-  return rows.some((row) => row.kind === 'team')
+function entrantWords(teams: boolean) {
+  return teams
     ? {
         column: 'organizer.pools.standings.team',
         csv: 'organizer.csvColumns.team',
+        csvClub: null,
         search: 'organizer.pools.standings.searchTeam',
         help: 'team',
       }
     : {
         column: 'organizer.pools.standings.fighter',
         csv: 'organizer.csvColumns.fighter',
+        csvClub: 'organizer.csvColumns.club',
         search: 'organizer.pools.standings.searchFighter',
         help: 'fighter',
       };
@@ -78,6 +83,8 @@ type Mode = 'overall' | 'by-pool';
 interface StandingsTabProps {
   tournamentId: string;
   poolPhaseId: string;
+  /** Whether the Tournament's entrants are teams (`entrant_kind`): its tables and files say Team. */
+  teams: boolean;
 }
 
 function readHashMode(): Mode {
@@ -87,7 +94,7 @@ function readHashMode(): Mode {
   return 'overall';
 }
 
-export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
+export function StandingsTab({ tournamentId, poolPhaseId, teams }: StandingsTabProps) {
   const { t, locale } = useI18n();
 
   const [mode, setMode] = useState<Mode>('overall');
@@ -175,10 +182,11 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
     format: CsvFormat,
     includePool?: boolean,
   ) {
+    const words = entrantWords(teams);
     const header = [
       t('organizer.csvColumns.rank'),
-      t(entrantWords(rows).csv),
-      t('organizer.csvColumns.club'),
+      t(words.csv),
+      ...(words.csvClub ? [t(words.csvClub)] : []),
       ...(includePool ? [t('organizer.csvColumns.pool')] : []),
       ...columns.map((c) => standingsColumnLabel(c, t)),
       t('organizer.csvColumns.status'),
@@ -186,7 +194,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
     const lines = rows.map((row) => [
       row.rank,
       row.displayName,
-      row.club?.name ?? '',
+      ...(words.csvClub ? [row.club?.name ?? ''] : []),
       ...(includePool ? [row._poolName ?? ''] : []),
       ...columns.map((c) => formatStat(c, row.stats[c.key], '')),
       statusLabel('poolState', row.status, t),
@@ -275,6 +283,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
             rows={overall.rows}
             cutAfterIndex={bracketSize}
             showFilter
+            teams={teams}
           />
         ))}
 
@@ -316,7 +325,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
                   // The table alone is clipped to the corners: the header's export menu opens
                   // below it, and a Pool of one or two rows would cut it off.
                   <div className="overflow-hidden rounded-b-lg">
-                    <StandingsTable columns={byPool.columns} rows={pool.rows} />
+                    <StandingsTable columns={byPool.columns} rows={pool.rows} teams={teams} />
                   </div>
                 )}
               </section>
@@ -332,9 +341,11 @@ function StandingsTable({
   rows,
   cutAfterIndex,
   showFilter,
+  teams,
 }: {
   columns: StandingsColumn[];
   rows: PoolStandingsRow[];
+  teams: boolean;
   /** Draw a qualification cut line after this many fighters (= bracket size).
    *  Only meaningful in the overall ranking; omitted in by-pool mode. */
   cutAfterIndex?: number | null;
@@ -351,7 +362,7 @@ function StandingsTable({
   ];
   const { query, setQuery, view, sortKey, direction, toggle, isDefaultOrder } =
     useStandingsView(rows);
-  const words = entrantWords(rows);
+  const words = entrantWords(teams);
   const sortAscLabel = t('admin.common.sortAscLabel');
   const sortDescLabel = t('admin.common.sortDescLabel');
   // The bracket cut line is index-based, so it only makes sense while the rows
