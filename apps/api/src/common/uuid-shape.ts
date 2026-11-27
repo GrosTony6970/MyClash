@@ -2,9 +2,11 @@
  * A uuid of any version, as Postgres's `uuid` type and `ParseUUIDPipe` read one: the shape only,
  * no RFC 4122 version or variant nibbles (`event-ref.ts` keeps its stricter RFC rule on purpose).
  *
- * The one copy. A value that fails it never reaches a `uuid` column's filter: Postgres refuses
- * the whole read (22P02) for one bad value, so a caller that names rows by ids it did not
- * validate (a model's tool arguments, an audit payload) asks this first.
+ * The shared copy; older copies of the same regex remain at `fighters/fighters.service.ts`,
+ * `photos/photo-upload.service.ts`, `programme/programme.service.ts` and
+ * `schedule/live-state.service.ts`. A value that fails it never reaches a `uuid` column's
+ * filter: Postgres refuses the whole read (22P02) for one bad value, so a caller that names rows
+ * by ids it did not validate (a model's tool arguments, an audit payload) asks this first.
  */
 const UUID_BODY = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 

@@ -10,6 +10,7 @@ import type {
 } from '@myclash/types';
 import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
+import { nameOrUnknown } from '@myclash/ui';
 
 /**
  * A draft's actions in words, one line each (ruling 993): the assistant page and the chat's
@@ -170,9 +171,10 @@ function assignSentence(
   t: Translator,
 ): string {
   const who = {
+    // A roster referee with no name on record reads "Unknown referee", never a blank or an id.
     referee: isMissing(action.referee)
       ? t('organizer.aiAssistant.readable.missing.referee')
-      : action.referee.name,
+      : nameOrUnknown(action.referee.name, 'referee', t),
     role: isMissing(action.role)
       ? t('organizer.aiAssistant.readable.missing.role')
       : action.role.name,

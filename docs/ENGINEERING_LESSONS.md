@@ -79,8 +79,10 @@ here.
 - **An id from a model or from stored JSON is checked for its shape before it reaches `.in()` on
   a uuid column.** One value Postgres cannot read as a uuid fails the WHOLE read (22P02), not its
   own row: a draft action holding `"matchId": "LSW-P2-M04"` would have made the Event's draft list
-  and the chat answer 500. Filter with `isUuidShape` (`apps/api/src/common/uuid-shape.ts`, the one
-  owner) and read the rest as missing.
+  and the chat answer 500. Filter with `isUuidShape` (`apps/api/src/common/uuid-shape.ts`, the
+  shared copy; four older copies of the regex remain in the fighters, photos, programme and
+  live-state services) and read the rest as missing. Where the id is a draft's own, the draft
+  check refuses it (`checkIds` in `organizer-ai-assistant.service.ts`).
 - **A "does it exist yet" read that guards an insert fails CLOSED.** Read as "none" on an error,
   a database blip would let Generate Pools insert a second Pool phase; with no unique index, every
   one-row read of it then fails on two rows, reads "none" again, and the app cannot repair the

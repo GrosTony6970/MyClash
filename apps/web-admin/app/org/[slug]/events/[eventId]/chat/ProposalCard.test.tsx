@@ -39,4 +39,19 @@ describe('the chat proposal card', () => {
     expect(text).toContain('Apply stopped before it finished. Part of it may have run');
     expect(text).not.toContain('validation errors');
   });
+
+  it('names a roster referee with no name on record in words, never a blank', () => {
+    const text = cardText(
+      draftOf([
+        {
+          kind: 'assign_referee',
+          referee: { name: '' },
+          role: { name: 'Lead referee' },
+          pool: { number: 2, tournament: 'Longsword Open' },
+        },
+      ]),
+    );
+
+    expect(text).toContain('Assign Unknown referee as Lead referee to Pool 2 of Longsword Open');
+  });
 });
