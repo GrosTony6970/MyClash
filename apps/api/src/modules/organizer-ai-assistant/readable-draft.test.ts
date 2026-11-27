@@ -275,6 +275,39 @@ describe('readableDraftActions', () => {
     expectNoRawIds(readable);
   });
 
+  it("leaves out a new Tournament's text that holds a uuid among other words", async () => {
+    const readable = await readableDraftActions(seeded().service as never, EVENT, [
+      [
+        {
+          kind: 'create_tournament',
+          name: `Sabre Open ${LONGSWORD}`,
+          slug: 'sabre-open',
+          weapon: 'sabre (ABCDEF12-3456-4789-8ABC-DEF123456789)',
+        },
+      ],
+    ]);
+
+    expect(readable).toEqual([[{ kind: 'create_tournament', slug: 'sabre-open' }]]);
+    expectNoRawIds(readable);
+  });
+
+  it('names a row whose id the model wrote in upper case, as Apply would find it', async () => {
+    // The database answers ids in lower case: an upper-case id in the action missed the name
+    // map and read as missing for a Tournament that exists. The canned answer is what Postgres
+    // gives for either case.
+    const rapier = 'abcdef12-3456-4789-8abc-def123456789';
+    const db = seeded({ tournaments: { data: [{ id: rapier, name: 'Rapier Cup' }], error: null } });
+
+    const readable = await readableDraftActions(db.service as never, EVENT, [
+      [{ kind: 'generate_pools', tournamentId: rapier.toUpperCase(), poolCount: 2 }],
+    ]);
+
+    expect(readable).toEqual([
+      [{ kind: 'generate_pools', tournament: { name: 'Rapier Cup' }, poolCount: 2 }],
+    ]);
+    expect(filtersFor(db.from, 'tournaments', 'in')).toEqual([['id', [rapier]]]);
+  });
+
   it('throws on a failed read rather than read the name as missing', async () => {
     const db = seeded({ tournaments: { data: null, error: { message: 'connection reset' } } });
 

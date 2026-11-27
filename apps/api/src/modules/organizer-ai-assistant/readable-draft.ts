@@ -10,7 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { eventZone } from '../../common/event-clock';
 import { inListChunks } from '../../common/postgrest-in-list';
 import { readInstant } from '../../common/read-instant';
-import { isUuidShape } from '../../common/uuid-shape';
+import { containsUuidShape, isUuidShape } from '../../common/uuid-shape';
 import { ROUND_CODE_EMBEDS, roundCodeFromMatchRow } from '../matches/round-code.helper';
 import { eventSkills } from '../mcp/tools/referee-write-gate';
 import { rosterDisplayName, type RosterPersonName } from '../referees/roster-display-name';
@@ -64,13 +64,15 @@ const flag = (value: unknown): boolean | undefined =>
  * The uuid ids `key` holds across the actions of `kinds`, once each. Any other value is never
  * sent: one value Postgres cannot read as a uuid refuses the whole read (22P02), and the list,
  * the draft and the chat would answer 500. The chat's model passes `"matchId": "LSW-P2-M04"`;
- * that id names no row, so it reads as missing.
+ * that id names no row, so it reads as missing. Lower-cased, as the database answers ids: an
+ * upper-case uuid names a row that exists, and Apply would find it.
  */
 function idsOf(actions: readonly Action[], kinds: readonly string[], key: string): string[] {
   const ids = actions
     .filter((action) => kinds.includes(action['kind'] as string))
     .map((action) => action[key])
-    .filter(isUuidShape);
+    .filter(isUuidShape)
+    .map((id) => id.toLowerCase());
   return [...new Set(ids)];
 }
 
@@ -217,9 +219,9 @@ async function readNames(db: SupabaseClient, eventId: string, actions: Action[])
   return { tournaments, matches, lices, pools, phases, referees, skills, zone };
 }
 
-/** The name `id` resolves to in `names`, or missing. */
+/** The name `id` resolves to in `names`, or missing. A uuid matches whatever its case. */
 function named<T>(names: Map<string, T>, id: unknown): T | ReadableMissing {
-  const key = text(id);
+  const key = isUuidShape(id) ? id.toLowerCase() : text(id);
   const found = key === undefined ? undefined : names.get(key);
   return found === undefined ? MISSING : found;
 }
@@ -236,11 +238,11 @@ function instant(value: unknown): string | null {
 }
 
 /**
- * A text value the model wrote, shown as written. A uuid-shaped one is absent: whatever it is,
- * it would put an id in the names.
+ * A text value the model wrote, shown as written. One that holds a uuid shape anywhere is
+ * absent (`Sabre Open 3f2a…` included): whatever it is, it would put an id in the names.
  */
 const plainText = (value: unknown): string | undefined =>
-  isUuidShape(value) ? undefined : text(value);
+  containsUuidShape(value) ? undefined : text(value);
 
 /** The name of an optional id: absent when the action holds none, else the name or missing. */
 function namedIfGiven<T>(names: Map<string, T>, id: unknown): T | ReadableMissing | undefined {
