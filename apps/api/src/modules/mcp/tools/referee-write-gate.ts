@@ -15,6 +15,7 @@ import {
 import { ForbiddenException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { assertCanManageEvent } from '../../../common/auth/event-authz';
+import { isOver } from '../../../common/live-status';
 import { OperationalUnavailableException } from '../../../common/operational-exception';
 import { assertNotReadOnly } from '../../../common/read-only-mode';
 import { ACTIVE_STATUSES, toAssignmentRow } from '../../matches/referee-assignment-index';
@@ -69,7 +70,7 @@ export async function refereeWriteRefusal(
     if (!(refused instanceof ForbiddenException)) throw refused;
     return { refusal: "Only the Event's organisers (editor or above) can change its referees." };
   }
-  if (event.status === 'completed' || event.status === 'archived') {
+  if (isOver(event.status)) {
     return { refusal: `${event.name} is over: its referees can no longer change.` };
   }
   if (await isRefereeBoardLocked(deps.supabase.service, event.id)) return LOCKED_REFUSAL;

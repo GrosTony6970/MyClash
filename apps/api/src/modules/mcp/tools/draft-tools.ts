@@ -135,9 +135,16 @@ const poolsInput = z
     schoolSeparation: generatePoolsSchema.shape.enforceSchoolSeparation,
     skillBalance: generatePoolsSchema.shape.enforceSkillBalance,
   })
-  .refine((a) => a.poolCount !== undefined || a.targetSize !== undefined, {
-    message: 'Give poolCount or targetSize.',
+  // Exactly one: given both, Generate Pools uses poolCount and ignores the size the draft shows.
+  .refine((a) => (a.poolCount === undefined) !== (a.targetSize === undefined), {
+    message: 'Give poolCount or targetSize, not both.',
   });
+
+/**
+ * Create Tournament's own name rule (2 to 200 characters), on the trimmed name: a name of spaces
+ * would pass it and save a draft the shape check fails.
+ */
+const tournamentName = z.string().trim().pipe(createTournamentSchema.shape.name);
 
 export function registerDraftTools(server: McpServer, caller: McpCaller, deps: McpToolDeps): void {
   server.registerTool(
@@ -150,7 +157,7 @@ export function registerDraftTools(server: McpServer, caller: McpCaller, deps: M
         DRAFT_NEXT,
       inputSchema: {
         event: slug,
-        name: createTournamentSchema.shape.name,
+        name: tournamentName,
         slug: createTournamentSchema.shape.slug,
         weapon: z.string().min(1).max(200).optional(),
         ruleset: rulesetCodeSchema.min(1).optional(),
@@ -164,7 +171,7 @@ export function registerDraftTools(server: McpServer, caller: McpCaller, deps: M
     {
       description:
         "Draft a Tournament's Pools: the Event slug (`event`), the Tournament slug " +
-        '(`tournament`), and `poolCount` or `targetSize` (fighters per Pool, 2 to 20); ' +
+        '(`tournament`), and one of `poolCount` or `targetSize` (fighters per Pool, 2 to 20); ' +
         '`schoolSeparation` keeps clubs apart, `skillBalance` spreads the ratings. Refuses a ' +
         'Tournament that already has Pools.' +
         DRAFT_NEXT,

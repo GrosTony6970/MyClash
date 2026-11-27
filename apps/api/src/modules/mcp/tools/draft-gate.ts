@@ -7,11 +7,14 @@
  * org admin or owner, the bar of the drafts and of Apply (call R); an Event that is over. Each
  * tool then refuses what Apply would refuse (call X) and calls `saveDraft`.
  *
- * The race it accepts: the gate and `createDraftFromAction` each ask the admin bar. An admin
- * removed between the two gets the generic failure, not the admin refusal.
+ * The races it accepts: the gate and `createDraftFromAction` each ask the admin bar. An admin
+ * removed between the two gets the generic failure, not the admin refusal. And a draft can go
+ * stale between its save and Apply: the slug is taken, Pools are made, the weapon is retired
+ * from the catalogue. Apply asks each again and marks the draft failed; the link then shows why.
  */
 import type { ReadableDraftAction } from '@myclash/types';
 import { ForbiddenException } from '@nestjs/common';
+import { isOver } from '../../../common/live-status';
 import type { McpCaller, McpToolDeps } from '../mcp-server';
 import { appName } from './connector-app-name';
 import type { McpRefusal } from './mcp-answer';
@@ -70,7 +73,7 @@ export async function draftGate(
     if (!(refused instanceof ForbiddenException)) throw refused;
     return { refusal: `Only the organisation's admins can make drafts at ${event.name}.` };
   }
-  if (event.status === 'completed' || event.status === 'archived') {
+  if (isOver(event.status)) {
     return { refusal: `${event.name} is over: nothing there can change now.` };
   }
   return { event, orgId: org.id, orgSlug: org.slug };

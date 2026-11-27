@@ -1,163 +1,25 @@
 /**
- * The MCP door through the real HTTP stack (`configureHttpApp`: the global filter, the prefix)
- * with the real AuthGuard in front of it, as in production, and real signed logins. What it
- * proves: Claude's three first calls answer, the 401 challenge survives the exception filter, a
- * GET is a 405, and the real read-only interceptor lets the door's reads answer (ruling 985)
- * while each tool that writes refuses on its own.
+ * The MCP door through the real HTTP stack (`mcp.http.test-helper.ts`): the global filter, the
+ * prefix, the real AuthGuard and real signed logins. What it proves: Claude's three first calls
+ * answer, the 401 challenge survives the exception filter, a GET is a 405, and the real read-only
+ * interceptor lets the door's reads answer (ruling 985). The tools that write, and their own
+ * maintenance refusal, are `mcp.http.writes.test.ts`'s.
  */
-import 'reflect-metadata';
 import { NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
-import { Test } from '@nestjs/testing';
-import * as jwt from 'jsonwebtoken';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AuthGuard } from '../../common/auth/auth.guard';
-import { API_GLOBAL_PREFIX } from '../../common/global-prefix';
-import { configureHttpApp } from '../../common/http-bootstrap';
-import { ReadOnlyInterceptor } from '../../common/interceptors/read-only.interceptor';
-import { AdminFeatureFlagsService } from '../admin/admin-feature-flags.service';
-import { GuestJwtService } from '../auth/guest-jwt.service';
-import { EventsService } from '../events/events.service';
-import { FightersService } from '../fighters/fighters.service';
-import { MatchesService } from '../matches/matches.service';
-import { MeEventsService } from '../me/me-events.service';
-import { PublicScheduleService } from '../persons/public-schedule.service';
-import { OrganizationsService } from '../organizations/organizations.service';
-import { OrganizerAIAssistantService } from '../organizer-ai-assistant/organizer-ai-assistant.service';
-import { PoolStandingsService } from '../pool-standings/pool-standings.service';
-import { AssignmentBoardService } from '../referees/assignment-board.service';
-import { QualificationsService } from '../referees/qualifications.service';
-import { ScheduleGridService } from '../schedule/schedule-grid.service';
-import { StaffJwtService } from '../staff/staff-jwt.service';
-import { verifyAccessTokenLocally } from '../supabase/access-token';
-import { SupabaseService } from '../supabase/supabase.service';
-import { TournamentQueryToolsService } from '../tournament-query/tournament-query.tools.service';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { MCP_INTERNAL_ERROR, McpController } from './mcp.controller';
+import { describe, expect, it, vi } from 'vitest';
+import { MCP_INTERNAL_ERROR } from './mcp.controller';
+import {
+  connector,
+  door,
+  getMyDashboard,
+  getUpcoming,
+  listMyEvents,
+  rpc,
+  useMcpDoor,
+} from './mcp.http.test-helper';
 
-const SECRET = 'test-supabase-jwt-secret-at-least-32-characters-long';
-const env: Record<string, string> = {
-  AUTH_GUARD_MODE: 'enforce',
-  DOMAIN: 'myclash.fr',
-  SUPABASE_URL: 'https://app.myclash.fr',
-};
-const refuse = {
-  verify: () => {
-    throw new Error('no such cookie');
-  },
-};
-const listMyEvents = vi.fn();
-const getUpcoming = vi.fn();
-const getMyDashboard = vi.fn();
-const setRefereeRoleAssignment = vi.fn();
-const createDraftFromAction = vi.fn();
-/** Every table a tool asked for: in maintenance, a write tool reads the switch and nothing else. */
-const from = vi.fn((_table: string) => flagRead);
-/** The read-only (maintenance) switch the real interceptor reads. */
-let readOnly = false;
-/** `feature_flags.select('enabled').eq('key', …).maybeSingle()`, answering `readOnly`. */
-const flagRead = {
-  select: () => flagRead,
-  eq: () => flagRead,
-  maybeSingle: async () => ({ data: { enabled: readOnly }, error: null }),
-};
-const connector = jwt.sign({ sub: 'user-1', email: 'a@b.c', client_id: 'claude-client' }, SECRET, {
-  expiresIn: 3600,
-});
-
-let app: NestFastifyApplication;
-let url: string;
-
-beforeAll(async () => {
-  const moduleRef = await Test.createTestingModule({
-    controllers: [McpController],
-    providers: [
-      { provide: APP_GUARD, useClass: AuthGuard },
-      { provide: APP_INTERCEPTOR, useClass: ReadOnlyInterceptor },
-      {
-        provide: AdminFeatureFlagsService,
-        useValue: { isEnabled: async (flag: string) => flag === 'read_only_mode' && readOnly },
-      },
-      {
-        provide: ConfigService,
-        useValue: {
-          get: (key: string) => env[key],
-          getOrThrow: (key: string) => {
-            if (env[key] === undefined) throw new Error(`missing ${key}`);
-            return env[key];
-          },
-        },
-      },
-      {
-        provide: SupabaseService,
-        useValue: {
-          verifyAccessTokenLocal: (t: string) => verifyAccessTokenLocally(t, SECRET),
-          // The read-only switch as a write tool reads it (`assertNotReadOnly`).
-          service: { from },
-        },
-      },
-      { provide: GuestJwtService, useValue: refuse },
-      { provide: StaffJwtService, useValue: refuse },
-      { provide: OrganizationsService, useValue: {} },
-      { provide: PublicScheduleService, useValue: {} },
-      { provide: EventsService, useValue: {} },
-      { provide: ScheduleGridService, useValue: {} },
-      { provide: PoolStandingsService, useValue: {} },
-      { provide: TournamentQueryToolsService, useValue: {} },
-      { provide: MatchesService, useValue: { setRefereeRoleAssignment } },
-      { provide: AssignmentBoardService, useValue: {} },
-      { provide: QualificationsService, useValue: {} },
-      { provide: OrganizerAIAssistantService, useValue: { createDraftFromAction } },
-      { provide: FightersService, useValue: { getMyDashboard } },
-      { provide: MeEventsService, useValue: { listMyEvents, getUpcoming } },
-    ],
-  }).compile();
-  app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter(), {
-    logger: false,
-  });
-  await configureHttpApp(app, { reportException: () => undefined, requestLog: false });
-  await app.listen(0, '127.0.0.1');
-  const { port } = app.getHttpServer().address() as { port: number };
-  url = `http://127.0.0.1:${port}/${API_GLOBAL_PREFIX}/mcp`;
-});
-
-afterAll(async () => {
-  await app.close();
-});
-
-beforeEach(() => {
-  readOnly = false;
-  setRefereeRoleAssignment.mockReset();
-  createDraftFromAction.mockReset();
-  from.mockClear();
-  getUpcoming.mockReset().mockResolvedValue([]);
-  getMyDashboard.mockReset();
-  listMyEvents.mockReset().mockResolvedValue([
-    {
-      event: { id: 'event-uuid', name: 'FAL 2026', slug: 'fal-2026', startDate: '2026-03-14' },
-      roles: {
-        isCompetitor: true,
-        isReferee: false,
-        isWorkshopParticipant: false,
-        isInstructor: false,
-      },
-    },
-  ]);
-});
-
-function rpc(method: string, params: object = {}, token: string | null = connector) {
-  return fetch(url, {
-    method: 'POST',
-    headers: {
-      accept: 'application/json, text/event-stream',
-      'content-type': 'application/json',
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-  });
-}
+useMcpDoor();
 
 describe('the MCP door, over HTTP', () => {
   it('answers initialize as myclash', async () => {
@@ -248,75 +110,12 @@ describe('the MCP door, over HTTP', () => {
   // Ruling 985: a referee asks "when is my next bout?" while MyClash is in maintenance. Every MCP
   // call is a POST, so the read-only switch refused the question with the writes.
   it('answers a read tool while MyClash is read-only', async () => {
-    readOnly = true;
+    door.readOnly = true;
     const res = await rpc('tools/call', { name: 'whoami', arguments: {} });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { result: { isError?: boolean } };
     expect(body.result.isError).toBeUndefined();
     expect(listMyEvents).toHaveBeenCalledWith({ userId: 'user-1', staff: null });
-  });
-
-  // The door passes read-only mode whole, so a tool that writes asks `assertNotReadOnly` itself.
-  // A new write tool must be named here, and proved below to refuse in maintenance, before it
-  // ships.
-  it('marks every tool read-only but the named writing tools', async () => {
-    const res = await rpc('tools/list');
-    const body = (await res.json()) as {
-      result: { tools: { name: string; annotations?: { readOnlyHint?: boolean } }[] };
-    };
-    const notReadOnly = body.result.tools.filter((t) => t.annotations?.readOnlyHint !== true);
-    expect(notReadOnly.map((t) => t.name).sort()).toEqual([
-      'apply_referee_assignment',
-      'draft_pools',
-      'draft_tournament',
-    ]);
-  });
-
-  it.each([
-    ['draft_tournament', { event: 'fal-2026', name: 'Sabre Open', slug: 'sabre-open' }],
-    ['draft_pools', { event: 'fal-2026', tournament: 'longsword-open', poolCount: 4 }],
-  ])('refuses %s while MyClash is read-only, before any other read', async (name, args) => {
-    readOnly = true;
-    const res = await rpc('tools/call', { name, arguments: args });
-    const body = (await res.json()) as {
-      result: { isError?: boolean; content: [{ text: string }] };
-    };
-    expect(body.result.isError).toBe(true);
-    expect(body.result.content[0].text).toBe(
-      'MyClash is in maintenance: nothing can change right now.',
-    );
-    expect(from.mock.calls.map(([table]) => table)).toEqual(['feature_flags']);
-    expect(createDraftFromAction).not.toHaveBeenCalled();
-  });
-
-  it('refuses draft_pools with neither poolCount nor targetSize, before the tool runs', async () => {
-    const res = await rpc('tools/call', {
-      name: 'draft_pools',
-      arguments: { event: 'fal-2026', tournament: 'longsword-open', schoolSeparation: true },
-    });
-    const body = (await res.json()) as {
-      result: { isError?: boolean; content: [{ text: string }] };
-    };
-    expect(body.result.isError).toBe(true);
-    expect(body.result.content[0].text).toContain('Give poolCount or targetSize.');
-    expect(from).not.toHaveBeenCalled();
-  });
-
-  it('refuses apply_referee_assignment while MyClash is read-only, and writes nothing', async () => {
-    readOnly = true;
-    const res = await rpc('tools/call', {
-      name: 'apply_referee_assignment',
-      arguments: { confirmation: 'any-confirmation' },
-    });
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as {
-      result: { isError?: boolean; content: [{ text: string }] };
-    };
-    expect(body.result.isError).toBe(true);
-    expect(body.result.content[0].text).toBe(
-      'MyClash is in maintenance: nothing can change right now.',
-    );
-    expect(setRefereeRoleAssignment).not.toHaveBeenCalled();
   });
 
   it('answers a failed tool with a plain error, never its cause', async () => {
@@ -371,7 +170,7 @@ describe('the MCP door, over HTTP', () => {
   });
 
   it('answers a GET 405, naming POST', async () => {
-    const res = await fetch(url, {
+    const res = await fetch(door.url, {
       headers: { accept: 'text/event-stream', authorization: `Bearer ${connector}` },
     });
     expect(res.status).toBe(405);
