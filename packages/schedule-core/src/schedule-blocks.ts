@@ -70,7 +70,7 @@ export interface ScheduleBlock {
 }
 
 /**
- * `roundName` names a bracket or Swiss round from its token ("R16" → "Tableau de 16"),
+ * `roundName` names a bracket or Swiss round from its token ("R16" → "Huitièmes de finale"),
  * in the reader's language. Required: this package holds no words, and a default here
  * once put English on French schedules.
  */

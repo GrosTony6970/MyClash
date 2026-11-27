@@ -137,7 +137,7 @@ function breakEndSlot(hhmm: string, startSlot: number): number {
   return Math.max(startSlot + 1, Math.max(0, Math.ceil(endMin / SLOT_MINUTES)));
 }
 
-/** `roundName` names a round block in the visitor's language ("R16" → "Tableau de 16"). */
+/** `roundName` names a round block in the visitor's language ("R16" → "Huitièmes de finale"). */
 export async function loadTournamentSchedule(
   eventSlug: string,
   apiUrl: string,

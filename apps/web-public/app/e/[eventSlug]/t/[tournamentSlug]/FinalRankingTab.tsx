@@ -21,6 +21,7 @@ import { useEffect, useState } from 'react';
 import {
   computeFinalRanking,
   rankingBracketShape,
+  roundGroupName,
   type FinalRankingEntry,
   type PoolEntry,
   type RankingSlot,
@@ -272,5 +273,5 @@ function roundLabel(t: Translator, round: number, maxRound: number): string {
   if (remaining <= 0) return t('publicApp.tournament.finalRanking.final');
   if (remaining === 1) return t('publicApp.tournament.finalRanking.semiFinals');
   if (remaining === 2) return t('publicApp.tournament.finalRanking.quarterFinals');
-  return t('publicApp.tournament.finalRanking.roundOf', { count: 1 << (remaining + 1) });
+  return roundGroupName(`R${1 << (remaining + 1)}`, t);
 }

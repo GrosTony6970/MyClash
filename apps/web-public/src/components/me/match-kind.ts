@@ -4,6 +4,7 @@
 // both read the kind identically.
 
 import type { Translator } from '@myclash/next-i18n/client';
+import { roundLabel } from '@myclash/ui';
 
 type TFn = Translator;
 
@@ -26,7 +27,7 @@ export function matchKindLabel(
     case 'quarter_final':
       return t('publicApp.me.hub.kindQuarterFinal');
     case 'round_of':
-      return roundOfCount ? t('publicApp.me.hub.kindRoundOf', { count: roundOfCount }) : null;
+      return roundOfCount ? roundLabel(`R${roundOfCount}`, t) : null;
     case 'swiss':
       return swissRound
         ? t('publicApp.me.hub.kindSwissRound', { round: swissRound })

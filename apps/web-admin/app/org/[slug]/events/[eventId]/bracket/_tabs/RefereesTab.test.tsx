@@ -122,7 +122,7 @@ describe('the round headings', () => {
 
   it("are in the reader's language", async () => {
     await render([bout('LSW-B-R16-M1', null), bout('LSW-B-QF-M1', null)], 'fr');
-    expect(headings()).toEqual(['Tableau de 16', 'Quarts de finale']);
+    expect(headings()).toEqual(['Huitièmes de finale', 'Quarts de finale']);
   });
 
   it('name a bout with no round by its phase, never "Other"', async () => {

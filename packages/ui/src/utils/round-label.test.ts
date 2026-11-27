@@ -32,6 +32,15 @@ describe('boutName', () => {
     expect(boutName({ ...open, phaseType: 'pool' }, fr)).toBe('Longsword Open · Poules');
   });
 
+  it('names one bout of a round by its fraction of the final in French, singular', () => {
+    expect(boutName({ ...open, roundToken: 'R16' }, fr)).toBe(
+      'Longsword Open · Huitième de finale',
+    );
+    expect(boutName({ ...open, roundToken: 'WBR32' }, fr)).toBe(
+      'Longsword Open · Seizième de finale du tableau principal',
+    );
+  });
+
   it('names the Tournament alone when nothing else is known', () => {
     expect(boutName({ ...open, phaseType: null }, en)).toBe('Longsword Open');
   });
@@ -40,7 +49,9 @@ describe('boutName', () => {
 /** A French organiser read "Round of 16" on the planning board and the public schedule. */
 describe('roundGroupName', () => {
   it("names a group of bouts by its round, in the reader's language", () => {
-    expect(roundGroupName('R16', fr)).toBe('Tableau de 16');
+    expect(roundGroupName('R16', fr)).toBe('Huitièmes de finale');
+    expect(roundGroupName('R32', fr)).toBe('Seizièmes de finale');
+    expect(roundGroupName('R16', en)).toBe('Round of 16');
     expect(roundGroupName('QF', fr)).toBe('Quarts de finale');
     expect(roundGroupName('S2', en)).toBe('Swiss Round 2');
   });

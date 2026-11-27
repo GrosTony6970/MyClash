@@ -2530,7 +2530,6 @@ export const organizer = {
     roundFinal: 'Final',
     roundSemis: 'Semi-finals',
     roundQuarters: 'Quarter-finals',
-    roundOfN: 'Round of {n}',
     printTitle: '{name} — Final ranking',
     tournamentFallback: 'Tournament',
   },

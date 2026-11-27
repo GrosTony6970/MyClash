@@ -56,7 +56,7 @@ describe('the group column of a bracket or Swiss bout', () => {
   };
 
   it('names the round in French', () => {
-    expect(groupOf('LSW-B-R16-M1')).toBe('Tableau de 16');
+    expect(groupOf('LSW-B-R16-M1')).toBe('Huitièmes de finale');
     expect(groupOf('LSW-B-QF-M2')).toBe('Quarts de finale');
   });
 

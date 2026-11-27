@@ -439,10 +439,8 @@ describe('roundTokenLabel', () => {
     expect(roundTokenLabel('SF')).toEqual({ key: 'common.round.semiFinal' });
     expect(roundTokenLabel('QF')).toEqual({ key: 'common.round.quarterFinal' });
     expect(roundTokenLabel('PI')).toEqual({ key: 'common.round.playIn' });
-    expect(roundTokenLabel('R16')).toEqual({
-      key: 'common.round.roundOf',
-      params: { count: '16' },
-    });
+    expect(roundTokenLabel('R16')).toEqual({ key: 'common.round.roundOf16' });
+    expect(roundTokenLabel('R128')).toEqual({ key: 'common.round.roundOf128' });
     expect(roundTokenLabel('B4')).toEqual({ key: 'common.round.bracketRound', params: { n: '4' } });
   });
 
@@ -456,10 +454,7 @@ describe('roundTokenLabel', () => {
       key: 'common.round.losersRound',
       params: { n: '2' },
     });
-    expect(roundTokenLabel('WBR16')).toEqual({
-      key: 'common.round.winnersRoundOf',
-      params: { count: '16' },
-    });
+    expect(roundTokenLabel('WBR16')).toEqual({ key: 'common.round.winnersRoundOf16' });
     expect(roundTokenLabel('WBB2')).toEqual({
       key: 'common.round.winnersRound',
       params: { n: '2' },
@@ -496,9 +491,17 @@ describe('roundTokenLabel', () => {
         if (t) emitted.add(t);
       }
     }
-    for (let round = 0; round <= 9; round++) {
-      const t = bracketToken({ bracketRound: round, bracketSize: 8, wbRounds: 3, lbRounds: 4 });
-      if (t) emitted.add(t);
+    for (let wbRounds = 1; wbRounds <= 7; wbRounds++) {
+      const lbRounds = 2 * (wbRounds - 1);
+      for (let round = 0; round <= wbRounds + lbRounds + 2; round++) {
+        const t = bracketToken({
+          bracketRound: round,
+          bracketSize: 2 ** wbRounds,
+          wbRounds,
+          lbRounds,
+        });
+        if (t) emitted.add(t);
+      }
     }
     for (const token of emitted) {
       expect(roundTokenLabel(token), `no label for token ${token}`).not.toBeNull();
