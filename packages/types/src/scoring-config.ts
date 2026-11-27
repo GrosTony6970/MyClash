@@ -9,6 +9,7 @@ import type {
   LevelStep,
   MatchFormatConfig,
   ScoringDirection,
+  ScoringUnit,
   TimerMode,
 } from '@myclash/rules/pad';
 
@@ -21,7 +22,14 @@ import type {
 // structurally identical and nothing checked that they stayed so; each consumer
 // picked whichever package it could already import. The shape now lives in
 // @myclash/rules and the schema asserts against it at compile time.
-export type { AfterblowMode, LevelStep, MatchFormatConfig, ScoringDirection, TimerMode };
+export type {
+  AfterblowMode,
+  LevelStep,
+  MatchFormatConfig,
+  ScoringDirection,
+  ScoringUnit,
+  TimerMode,
+};
 
 export const TOURNAMENT_SIDE_COLORS = [
   'white',
@@ -271,6 +279,12 @@ export { pendingLevelStep } from '@myclash/rules/pad';
 /** The doubles limit a bout is fought under: none outside a pool and a Swiss round. */
 export { getEffectiveMaxDoubles } from '@myclash/rules/pad';
 
+/**
+ * The server's pricer of one exchange, points or venues, and the venues a round is fought over:
+ * the pad prices a queued hit and closes a venues round as the server will.
+ */
+export { exchangeDeltas, getEffectiveVenuesPerRound } from '@myclash/rules/pad';
+
 /** The end of a round by itself, and the end of a best-of series: the pad runs a bout offline. */
 export { roundOutcome, seriesResult } from '@myclash/rules/pad';
 export type { SeriesResult } from '@myclash/rules/pad';
@@ -355,4 +369,29 @@ export function buildScoringButtons(grammar: ScoringGrammar): ScoringButtonConfi
     }
   }
   return { clean, afterblow };
+}
+
+/**
+ * The buttons a bout scores with: its stored buttons, as its scoring unit puts them in force.
+ *
+ * A venues bout scores a touch, not a target, so it shows one `+1` per side, and, where the
+ * grammar has an afterblow, one `1-1` (it is still recorded, and wins no venue). Derived at read,
+ * never written: the stored buttons stay as `buildScoringButtons` seeded them, so switching the
+ * unit back and forth needs no write. The server prices a venues clean hit as 1 whatever value
+ * arrives, so a pad holding stale buttons cannot inflate a score.
+ *
+ * Points mode gives the stored buttons themselves, the same object.
+ */
+export function buttonsInForce(
+  buttons: ScoringButtonConfig,
+  unit: ScoringUnit,
+): ScoringButtonConfig {
+  if (unit !== 'venues') return buttons;
+  return {
+    clean: [{ label: '+1', value: 1, visible: true }],
+    afterblow:
+      buttons.afterblow.length > 0
+        ? [{ label: '1-1', attackerPts: 1, defenderPts: 1, visible: true }]
+        : [],
+  };
 }

@@ -43,6 +43,7 @@ describe('the bout’s list and its score', () => {
     const rows = pendingRowsForMatch({
       entries: await getAllPending(),
       config: DEFAULT_SCORING_CONFIG,
+      scoringUnit: 'points',
       serverExchanges: [],
       serverProtests: [],
       serverPenalties: [],
@@ -61,6 +62,7 @@ describe('the round of a queued hit or card, as the bout’s list gives it', () 
     const rows = pendingRowsForMatch({
       entries: await getAllPending(),
       config: DEFAULT_SCORING_CONFIG,
+      scoringUnit: 'points',
       serverExchanges: [],
       serverProtests: [],
       serverPenalties: [],

@@ -71,6 +71,13 @@ export interface PadSeries {
   blueBelowZero?: number;
   /** The doubles of that round, the ones the tablet still holds included. */
   doubles: number;
+  /**
+   * The venues each side won in that round, the ones the tablet still holds
+   * included: its clean hits, counted in every scoring unit. A venues round
+   * ends on them (`roundOutcome`).
+   */
+  redVenuesWon: number;
+  blueVenuesWon: number;
   /** The doubles limit the server applies to this bout, or null for none. */
   doublesLimit: number | null;
   /** Every closed round, in order. */
@@ -250,8 +257,6 @@ function roundCount(args: PadSeriesArgs, round: number, serverRound: number) {
   const queued = args.queued.filter(queuedIn);
   // A server row with no round is of round 1: the server reads it so (`?? 1`).
   const ofRound = (row: { round_number?: number | null }) => (row.round_number ?? 1) === round;
-  const double = (row: ExchangeRow) => row.type === 'double';
-  const serverDoubles = args.exchanges.filter((row) => ofRound(row) && double(row)).length;
   return {
     round,
     // A round the tablet opened itself is one the server has not scored.
@@ -260,13 +265,27 @@ function roundCount(args: PadSeriesArgs, round: number, serverRound: number) {
       queued,
       queuedCards: args.queuedPenalties.filter(queuedIn),
     }),
-    doubles: serverDoubles + queued.filter(double).length,
+    ...tally(args.exchanges.filter(ofRound), queued),
+  };
+}
+
+/** A venue `side` won: a clean hit of theirs. Read from the exchange type, as the server does. */
+const wonVenue = (side: Color) => (row: ExchangeRow) =>
+  row.type === 'clean' && row.scoringSide === side;
+
+/** The doubles and the venues won of a round's rows: the server's, plus the tablet's. */
+function tally(server: readonly ExchangeRow[], queued: readonly ExchangeRow[]) {
+  const count = (test: (row: ExchangeRow) => boolean) =>
+    server.filter(test).length + queued.filter(test).length;
+  return {
+    doubles: count((row) => row.type === 'double'),
+    redVenuesWon: count(wonVenue('red')),
+    blueVenuesWon: count(wonVenue('blue')),
   };
 }
 
 /** A single-round bout: one round, never closed here. The clock ends the bout. */
 function singleRound(args: PadSeriesArgs): PadSeries {
-  const double = (row: ExchangeRow) => row.type === 'double';
   const on = {
     round: 1,
     ...scoreOnPad(args, serverScore(args), {
@@ -274,7 +293,7 @@ function singleRound(args: PadSeriesArgs): PadSeries {
       queued: args.queued,
       queuedCards: args.queuedPenalties,
     }),
-    doubles: args.exchanges.filter(double).length + args.queued.filter(double).length,
+    ...tally(args.exchanges, args.queued),
   };
   return {
     ...standing({ ...args, bestOf: 1 }, on, [], 'server'),

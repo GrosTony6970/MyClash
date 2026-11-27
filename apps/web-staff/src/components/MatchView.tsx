@@ -287,6 +287,7 @@ export function MatchView({
     cardKey: match.rules ? cardCatalogueKey(match.rules.cardRulesetId) : null,
     refreshKey,
     config: scoringConfig,
+    scoringUnit: matchFormat.scoringUnit,
     syncPendingCount: syncState?.pendingCount ?? 0,
     syncRejectedCount: syncState?.rejectedCount ?? 0,
   });

@@ -30,7 +30,7 @@
 
 import { useMemo } from 'react';
 import type { ExchangeRow, MatchProtest, Penalty } from '@myclash/ui';
-import type { TournamentScoringConfig } from '@myclash/types';
+import type { ScoringUnit, TournamentScoringConfig } from '@myclash/types';
 import { useExchanges } from './useExchanges';
 import { useProtests } from './useProtests';
 import {
@@ -119,6 +119,8 @@ export function useMatchScoringData(args: {
   cardKey?: string | null;
   refreshKey: number;
   config: TournamentScoringConfig;
+  /** The bout's scoring unit, from the format `rulesOnPad` gives: it prices a queued hit. */
+  scoringUnit: ScoringUnit;
   /**
    * The SyncEngine's pending count, NOT a per-match one.
    *
@@ -135,7 +137,7 @@ export function useMatchScoringData(args: {
   /** The engine's count of refused rows: a Discard in the inbox moves it. */
   syncRejectedCount: number;
 }): MatchScoringData {
-  const { apiUrl, matchId, refreshKey, config } = args;
+  const { apiUrl, matchId, refreshKey, config, scoringUnit } = args;
 
   const takenBack = useTakenBack(refreshKey, args.syncPendingCount);
   const { active: serverExchanges, refresh: refreshExchanges } = useExchanges(
@@ -166,6 +168,7 @@ export function useMatchScoringData(args: {
       pendingRowsForMatch({
         entries: pendingEntries,
         config,
+        scoringUnit,
         serverExchanges: activeExchanges,
         serverPenalties: activePenalties,
         serverProtests: activeProtests,
@@ -174,7 +177,16 @@ export function useMatchScoringData(args: {
         // cannot, and the count below says how many it could not.
         pricing: { ruleset, priors },
       }),
-    [pendingEntries, config, activeExchanges, activePenalties, activeProtests, ruleset, priors],
+    [
+      pendingEntries,
+      config,
+      scoringUnit,
+      activeExchanges,
+      activePenalties,
+      activeProtests,
+      ruleset,
+      priors,
+    ],
   );
 
   const queuedRoundPresses = useMemo(

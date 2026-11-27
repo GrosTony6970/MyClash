@@ -44,6 +44,17 @@ describe('rulesOnPad', () => {
     expect(on.stale).toBe(false);
   });
 
+  it('scores a venues bout with one +1 button, whatever buttons the copy stored', () => {
+    const venues = { ...RULES.matchFormat, scoringUnit: 'venues' as const };
+    const own = rulesOnPad({ ...RULES, matchFormat: venues }, config(true));
+    expect(own.scoringConfig.buttons.clean).toEqual([{ label: '+1', value: 1, visible: true }]);
+    // A bout read with no rules scores with its Tournament's, in force the same way.
+    const tournament = rulesOnPad(undefined, { ...config(true), matchFormat: venues });
+    expect(tournament.scoringConfig.buttons.clean).toEqual([
+      { label: '+1', value: 1, visible: true },
+    ]);
+  });
+
   it('says so when the display came off the tablet', () => {
     expect(rulesOnPad(RULES, config(false))).toMatchObject({ stale: true });
   });

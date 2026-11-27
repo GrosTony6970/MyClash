@@ -15,6 +15,7 @@
  * (`undefined`): a notice that flashes on every open says nothing.
  */
 import {
+  buttonsInForce,
   DEFAULT_MATCH_FORMAT_CONFIG,
   DEFAULT_SCORING_CONFIG,
   type MatchFormatConfig,
@@ -77,16 +78,33 @@ export function rulesOnPad(
   const stale = config !== undefined && (!rules || config === null || !config.fresh);
   const tournament = config ?? null;
   if (!rules) {
+    const matchFormat = tournament?.matchFormat ?? DEFAULT_MATCH_FORMAT_CONFIG;
     return {
-      scoringConfig: tournament?.scoringConfig ?? DEFAULT_SCORING_CONFIG,
-      matchFormat: tournament?.matchFormat ?? DEFAULT_MATCH_FORMAT_CONFIG,
+      scoringConfig: inForce(tournament?.scoringConfig ?? DEFAULT_SCORING_CONFIG, matchFormat),
+      matchFormat,
       stale,
     };
   }
   const display = tournament?.scoringConfig ?? DEFAULT_SCORING_CONFIG;
   return {
-    scoringConfig: { ...display, afterblowMode: rules.afterblowMode, buttons: rules.buttons },
+    scoringConfig: inForce(
+      { ...display, afterblowMode: rules.afterblowMode, buttons: rules.buttons },
+      rules.matchFormat,
+    ),
     matchFormat: rules.matchFormat,
     stale,
   };
+}
+
+/**
+ * The config with the buttons its format scores with (`buttonsInForce`): one `+1` per side in a
+ * venues bout. This is the one place the pad gets its buttons, so the stored ones are never
+ * re-seeded for venues. In points mode the config itself, the same object.
+ */
+function inForce(
+  scoringConfig: TournamentScoringConfig,
+  matchFormat: MatchFormatConfig,
+): TournamentScoringConfig {
+  const buttons = buttonsInForce(scoringConfig.buttons, matchFormat.scoringUnit);
+  return buttons === scoringConfig.buttons ? scoringConfig : { ...scoringConfig, buttons };
 }

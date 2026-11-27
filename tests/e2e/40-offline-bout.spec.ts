@@ -75,15 +75,85 @@ test('a whole bout runs with no network, and reaches the server when it is back'
   await expect(pad.unconfirmed, 'the server confirmed the result').toHaveCount(0);
 });
 
+/**
+ * A venues bout with no network (venues scoring, ruling 5): a Pool bout of one
+ * round, fought over 3 won venues, played out (no early stop). The pad shows
+ * one "+1" per side whatever buttons the Tournament stored. Three touches with
+ * the wifi down spend the venues: "End match" is the result, asked nothing,
+ * and the server ends the bout on the same venue limit once the queue is sent.
+ */
+test('a venues bout runs with no network, and ends on its venue limit', async ({
+  page,
+  context,
+  request,
+}) => {
+  test.setTimeout(180_000);
+  const api = apiFor(request);
+  const { eventId, baseURL } = runContext();
+  const staffBase = (process.env.E2E_STAFF_URL ?? `${baseURL}/staff`).replace(/\/$/, '');
+  const bout = await aScheduledPoolBout(api, eventId, {
+    scoringUnit: 'venues',
+    venuesPerRound: { pool: 3 },
+    stopWhenDecided: false,
+  });
+  const serverBout = async () => api.json<ServerBout>(await api.get(`matches/${bout.id}`));
+  const pad = padOf(page);
+  const touch = (side: 'red' | 'blue') =>
+    page
+      .locator(`[data-testid="scoring-column"][data-side="${side}"]`)
+      .getByTestId('clean-hit-button');
+
+  await page.goto(`${staffBase}/matches/${bout.id}`);
+  await expect(pad.bar).toHaveAttribute('data-network', 'online', { timeout: 30_000 });
+  await expect(pad.primary).toBeEnabled({ timeout: 30_000 });
+  // One button per side, "+1": the stored "+2" is not in force in a venues bout.
+  await expect(touch('red')).toHaveCount(1);
+  await expect(touch('red')).toContainText('+1');
+
+  await context.setOffline(true);
+  await expect(pad.bar).toHaveAttribute('data-network', 'offline', { timeout: 15_000 });
+  await pad.primary.click();
+  await expect(pad.clock).toHaveAttribute('data-status', 'running');
+  await pad.primary.click();
+  await expect(pad.clock).toHaveAttribute('data-status', 'halted');
+  for (const side of ['red', 'red', 'blue'] as const) await touch(side).click();
+  await expect
+    .poll(() => queuedKinds(page))
+    .toEqual(['press', 'press', ...Array(3).fill('exchange')]);
+
+  // At the venue limit the End is the result: no "end now?" question.
+  await page.getByTestId('clock-end-button').click();
+  await expect(pad.result).toBeVisible();
+  await expect(page.getByTestId('end-early-confirm')).toHaveCount(0);
+  await expect(page.getByTestId('match-result-score')).toHaveText('2 – 1');
+  expect((await serverBout()).status).toBe('scheduled');
+
+  await context.setOffline(false);
+  await expect.poll(() => queuedKinds(page), { timeout: 30_000 }).toEqual([]);
+  await expect.poll(async () => (await serverBout()).status, { timeout: 30_000 }).toBe('completed');
+  const ended = await serverBout();
+  expect({ red: ended.red_score, blue: ended.blue_score }).toEqual({ red: 2, blue: 1 });
+  expect(ended.end_reason).toBe('venue_limit');
+  expect(ended.winner_registration_id).toBe(bout.red_registration_id);
+});
+
 interface ServerBout {
   status: string;
   red_score: number | null;
   blue_score: number | null;
   winner_registration_id: string | null;
+  end_reason: string | null;
 }
 
-/** One Pool bout of two fighters that nobody started: the server says "scheduled". */
-async function aScheduledPoolBout(api: Api, eventId: string): Promise<PoolMatch> {
+/**
+ * One Pool bout of two fighters that nobody started: the server says "scheduled". `matchFormat`
+ * is set after the draw: a change of the rules re-stamps the bouts not yet started.
+ */
+async function aScheduledPoolBout(
+  api: Api,
+  eventId: string,
+  matchFormat?: Record<string, unknown>,
+): Promise<PoolMatch> {
   const token = Date.now().toString(36);
   const tournament = await createPoolTournament(api, eventId, {
     name: `Offline bout ${token}`,
@@ -91,6 +161,11 @@ async function aScheduledPoolBout(api: Api, eventId: string): Promise<PoolMatch>
     fighters: (await ensurePersons(api, eventId, 2)).slice(0, 2),
     poolCount: 1,
   });
+  if (matchFormat) {
+    await api.ok(
+      await api.patch(`tournaments/${tournament.id}`, { data: { rulesetConfig: { matchFormat } } }),
+    );
+  }
   const bout = (await readPoolMatches(api, tournament.id)).find(
     (match) => match.red_registration_id && match.blue_registration_id,
   );

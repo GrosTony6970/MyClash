@@ -5,8 +5,8 @@
  * The button sits just under Pause. An official who means Pause and hits it
  * ends the bout, and Re-open needs the network: with the wifi down the bout
  * stays ended. A normal end is not slowed: once a fighter is at the cap, the
- * doubles limit is reached, or the time is reached, the press ends the bout at
- * once.
+ * doubles limit or the venue limit is reached, or the time is reached, the
+ * press ends the bout at once.
  *
  * A phase with no time limit has no time to wait for (`timeIsFinished` answers
  * true there), so its End is never early.
@@ -23,13 +23,42 @@ import {
 import type { LimitReason, PressedOn } from '../offline/db';
 import { timeIsFinished, type PhaseType } from './scoreboard-clock';
 
-/** The score an End is judged on: the board, and the doubles of the bout or the round. */
-export type EndBoard = CapScore & { doubles: number };
+/**
+ * The score an End is judged on: the board, and the doubles and the venues won of the bout or
+ * the round.
+ */
+export type EndBoard = CapScore & { doubles: number; redVenuesWon: number; blueVenuesWon: number };
 
 /** The two things of a bout that say which rules of the format it is under. */
 interface BoutPhase {
   phaseType?: PhaseType | null;
   matchNumberLabel?: string | null;
+}
+
+/** Is the bout over by itself on this board, and why: the server's own rule (`roundOutcome`). */
+function outcomeOn(
+  score: EndBoard,
+  bout: BoutPhase,
+  matchFormat: MatchFormatConfig,
+  edition: DecisionEdition,
+) {
+  const phase = { phaseType: bout.phaseType ?? undefined, matchNumberLabel: bout.matchNumberLabel };
+  return roundOutcome(phase, score, matchFormat, edition);
+}
+
+/**
+ * The bout stands at its venue limit, and for whom (null: a level board that may end level).
+ * Null when it does not. A venues bout of one round ends there as a bout at the cap does: the End
+ * is the result, not early and not refused, and the board stands.
+ */
+function venueLimitEnd(
+  score: EndBoard,
+  bout: BoutPhase,
+  matchFormat: MatchFormatConfig,
+  edition: DecisionEdition,
+): { winnerColor: 'red' | 'blue' | null } | null {
+  const { endReason, winnerColor } = outcomeOn(score, bout, matchFormat, edition);
+  return endReason === 'venue_limit' ? { winnerColor } : null;
 }
 
 /**
@@ -44,7 +73,8 @@ interface BoutPhase {
  * level board "until the time is finished".
  *
  * A board at the cap AND at the limit is the cap's in a bout that counts up:
- * `roundOutcome` owns that order, and this answers null there.
+ * `roundOutcome` owns that order, and this answers null there. A board at the
+ * venue limit is no doubles limit either (`venueLimitEnd`): null.
  */
 export function limitEnd(
   score: EndBoard,
@@ -52,9 +82,8 @@ export function limitEnd(
   matchFormat: MatchFormatConfig,
   edition: DecisionEdition,
 ): LimitReason | null {
-  const phase = { phaseType: bout.phaseType ?? undefined, matchNumberLabel: bout.matchNumberLabel };
-  const { endReason } = roundOutcome(phase, score, matchFormat, edition);
-  return endReason === 'first_to_points' ? null : endReason;
+  const { endReason } = outcomeOn(score, bout, matchFormat, edition);
+  return endReason === 'first_to_points' || endReason === 'venue_limit' ? null : endReason;
 }
 
 export function endIsEarly(
@@ -65,8 +94,10 @@ export function endIsEarly(
   score: EndBoard,
   edition: DecisionEdition,
 ): boolean {
+  const bout = { phaseType, matchNumberLabel };
   if (pointCapWinnerColor(score, matchFormat, edition) !== null) return false;
-  if (limitEnd(score, { phaseType, matchNumberLabel }, matchFormat, edition) !== null) return false;
+  if (limitEnd(score, bout, matchFormat, edition) !== null) return false;
+  if (venueLimitEnd(score, bout, matchFormat, edition)) return false;
   return !timeIsFinished(elapsedMs, matchFormat, phaseType, matchNumberLabel);
 }
 
@@ -99,6 +130,9 @@ export function levelBoardWinner(
  * that outcome leaves. A format that wipes the board leaves 0 - 0 and nobody;
  * "the result stands" leaves the board, whose leader `tabletWinner` reads from
  * the two numbers as for any End.
+ *
+ * At the venue limit the board stands and the winner is the one the venue
+ * count names; the cap is not read there, as the server does not read it.
  */
 export function pressedOn(
   score: EndBoard,
@@ -111,7 +145,8 @@ export function pressedOn(
     const wiped = endReason !== 'max_doubles_result_stands';
     return { red: wiped ? 0 : score.redScore, blue: wiped ? 0 : score.blueScore, endReason };
   }
-  const winner = pointCapWinnerColor(score, matchFormat, edition);
+  const venues = venueLimitEnd(score, bout, matchFormat, edition);
+  const winner = venues ? venues.winnerColor : pointCapWinnerColor(score, matchFormat, edition);
   return { red: score.redScore, blue: score.blueScore, ...(winner ? { winner } : {}) };
 }
 
@@ -132,7 +167,8 @@ export type EndRefusedOnPad =
  * then see it taken back.
  *
  * A bout at its doubles limit ends, level or not: the limit is the result
- * (`limitEnd`), and the server has ended that bout on its last double.
+ * (`limitEnd`), and the server has ended that bout on its last double. So does
+ * a bout at its venue limit (`venueLimitEnd`).
  *
  * `score` is the score on the screen, the tablet's unsent hits included: it is
  * the score the End is pressed on, and the queue sends those hits first.
@@ -147,7 +183,9 @@ export function endRefusedOnPad(args: {
   edition: DecisionEdition;
 }): EndRefusedOnPad | null {
   const { matchFormat, phaseType, matchNumberLabel, score, edition } = args;
-  if (limitEnd(score, { phaseType, matchNumberLabel }, matchFormat, edition) !== null) return null;
+  const bout = { phaseType, matchNumberLabel };
+  if (limitEnd(score, bout, matchFormat, edition) !== null) return null;
+  if (venueLimitEnd(score, bout, matchFormat, edition)) return null;
   if (score.redScore !== score.blueScore) return null;
   if (levelBoardWinner(score, matchFormat, edition) !== null) return null;
   if (!timeIsFinished(args.elapsedMs, matchFormat, phaseType, matchNumberLabel)) {

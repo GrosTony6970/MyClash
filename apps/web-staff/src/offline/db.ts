@@ -124,10 +124,13 @@ export interface PressedOn {
   endReason?: LimitReason;
 }
 
-/** The reasons a bout ends for at its doubles limit, one per outcome of the format. */
+/**
+ * The reasons a bout ends for at its doubles limit, one per outcome of the format. The venue
+ * limit is none of them: it wipes no board.
+ */
 export type LimitReason = Exclude<
   NonNullable<ReturnType<typeof roundOutcome>['endReason']>,
-  'first_to_points'
+  'first_to_points' | 'venue_limit'
 >;
 
 /** `none`: pressed with no network; `seen`: a network answered after the tap (`press-queue.ts`). */
