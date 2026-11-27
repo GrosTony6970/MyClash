@@ -137,6 +137,8 @@ function answer(ruleset: Ruleset, board: Board): Answer {
     blueTargetPoints: 0,
     redTimesHit: 0,
     blueTimesHit: 0,
+    redVenuesWon: 0,
+    blueVenuesWon: 0,
     ...(board.redBelowZero === undefined ? {} : { redBelowZero: board.redBelowZero }),
     ...(board.blueBelowZero === undefined ? {} : { blueBelowZero: board.blueBelowZero }),
   };

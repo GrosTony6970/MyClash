@@ -52,7 +52,8 @@ export interface MatchEndDecision {
    * The three max-doubles values are one per `maxDoubleHitOutcome`, resolved at
    * the moment the bout ends — only `'max_doubles'` means loss for both.
    */
-  reason: 'time_limit' | 'first_to_points' | MaxDoubleHitEndReason | 'manual' | null;
+  reason:
+    'time_limit' | 'first_to_points' | 'venue_limit' | MaxDoubleHitEndReason | 'manual' | null;
 }
 
 export interface FighterAggregates {

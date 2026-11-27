@@ -30,6 +30,9 @@ function config(over: Partial<MatchFormatConfig> = {}): MatchFormatConfig {
       bracket: [{ kind: 'sudden_death' }],
       finals: [{ kind: 'sudden_death' }],
     },
+    scoringUnit: 'points',
+    venuesPerRound: { pool: 5, bracket: 5, finals: 5 },
+    stopWhenDecided: true,
     ...over,
   };
 }
@@ -41,20 +44,35 @@ const OPEN = { autoOver: false, winnerColor: null, endReason: null };
 describe('roundOutcome', () => {
   it('leaves a round open under the cap and under the doubles limit', () => {
     expect(
-      roundOutcome(POOL, { redScore: 4, blueScore: 4, doubles: 2 }, config(), EDITION_2026_10),
+      roundOutcome(
+        POOL,
+        { redScore: 4, blueScore: 4, doubles: 2, redVenuesWon: 0, blueVenuesWon: 0 },
+        config(),
+        EDITION_2026_10,
+      ),
     ).toEqual(OPEN);
   });
 
   it('closes a round at the cap, for the side that reached it', () => {
     expect(
-      roundOutcome(POOL, { redScore: 5, blueScore: 2, doubles: 0 }, config(), EDITION_2026_10),
+      roundOutcome(
+        POOL,
+        { redScore: 5, blueScore: 2, doubles: 0, redVenuesWon: 0, blueVenuesWon: 0 },
+        config(),
+        EDITION_2026_10,
+      ),
     ).toEqual({
       autoOver: true,
       winnerColor: 'red',
       endReason: 'first_to_points',
     });
     expect(
-      roundOutcome(POOL, { redScore: 1, blueScore: 6, doubles: 0 }, config(), EDITION_2026_10),
+      roundOutcome(
+        POOL,
+        { redScore: 1, blueScore: 6, doubles: 0, redVenuesWon: 0, blueVenuesWon: 0 },
+        config(),
+        EDITION_2026_10,
+      ),
     ).toMatchObject({
       autoOver: true,
       winnerColor: 'blue',
@@ -62,7 +80,7 @@ describe('roundOutcome', () => {
   });
 
   it('closes a round both reached the cap in, level, only where the phase may end level', () => {
-    const level = { redScore: 5, blueScore: 5, doubles: 0 };
+    const level = { redScore: 5, blueScore: 5, doubles: 0, redVenuesWon: 0, blueVenuesWon: 0 };
     expect(roundOutcome(POOL, level, config(), EDITION_2026_10)).toEqual({
       autoOver: true,
       winnerColor: null,
@@ -74,7 +92,12 @@ describe('roundOutcome', () => {
 
   it('closes a pool round at the doubles limit, with no winner when the board is wiped', () => {
     expect(
-      roundOutcome(POOL, { redScore: 3, blueScore: 1, doubles: 3 }, config(), EDITION_2026_10),
+      roundOutcome(
+        POOL,
+        { redScore: 3, blueScore: 1, doubles: 3, redVenuesWon: 0, blueVenuesWon: 0 },
+        config(),
+        EDITION_2026_10,
+      ),
     ).toEqual({
       autoOver: true,
       winnerColor: null,
@@ -85,7 +108,12 @@ describe('roundOutcome', () => {
   it('gives a round at the doubles limit to the leader when the result stands', () => {
     const stands = config({ maxDoubleHitOutcome: 'result_stands' });
     expect(
-      roundOutcome(POOL, { redScore: 3, blueScore: 1, doubles: 3 }, stands, EDITION_2026_10),
+      roundOutcome(
+        POOL,
+        { redScore: 3, blueScore: 1, doubles: 3, redVenuesWon: 0, blueVenuesWon: 0 },
+        stands,
+        EDITION_2026_10,
+      ),
     ).toEqual({
       autoOver: true,
       winnerColor: 'red',
@@ -94,7 +122,7 @@ describe('roundOutcome', () => {
   });
 
   it('applies the doubles limit in a pool and a Swiss round only', () => {
-    const atLimit = { redScore: 3, blueScore: 1, doubles: 3 };
+    const atLimit = { redScore: 3, blueScore: 1, doubles: 3, redVenuesWon: 0, blueVenuesWon: 0 };
     expect(
       roundOutcome({ ...POOL, phaseType: 'swiss' }, atLimit, config(), EDITION_2026_10).autoOver,
     ).toBe(true);
@@ -106,7 +134,12 @@ describe('roundOutcome', () => {
 
   it('asks the cap before the doubles limit', () => {
     expect(
-      roundOutcome(POOL, { redScore: 5, blueScore: 1, doubles: 3 }, config(), EDITION_2026_10),
+      roundOutcome(
+        POOL,
+        { redScore: 5, blueScore: 1, doubles: 3, redVenuesWon: 0, blueVenuesWon: 0 },
+        config(),
+        EDITION_2026_10,
+      ),
     ).toMatchObject({
       winnerColor: 'red',
       endReason: 'first_to_points',
@@ -116,7 +149,12 @@ describe('roundOutcome', () => {
   it('reads a reverse score down: the side at zero loses the round', () => {
     const reverse = config({ scoringDirection: 'reverse_zero_loses' });
     expect(
-      roundOutcome(POOL, { redScore: 0, blueScore: 2, doubles: 0 }, reverse, EDITION_2026_10),
+      roundOutcome(
+        POOL,
+        { redScore: 0, blueScore: 2, doubles: 0, redVenuesWon: 0, blueVenuesWon: 0 },
+        reverse,
+        EDITION_2026_10,
+      ),
     ).toMatchObject({
       autoOver: true,
       winnerColor: 'blue',
@@ -131,7 +169,7 @@ describe('roundOutcome', () => {
   describe('in a bout that counts down', () => {
     const down = (over: Partial<MatchFormatConfig> = {}) =>
       config({ scoringDirection: 'reverse_zero_loses', ...over });
-    const wiped = { redScore: 0, blueScore: 0, doubles: 3 };
+    const wiped = { redScore: 0, blueScore: 0, doubles: 3, redVenuesWon: 0, blueVenuesWon: 0 };
 
     it('ends a wiped board at the doubles limit as a loss for both, not as a draw at the cap', () => {
       expect(roundOutcome(POOL, wiped, down(), EDITION_2026_10)).toEqual({
@@ -162,7 +200,12 @@ describe('roundOutcome', () => {
     it('fence: gives a board that stands at the limit to its leader', () => {
       const stands = down({ maxDoubleHitOutcome: 'result_stands' });
       expect(
-        roundOutcome(POOL, { redScore: 3, blueScore: 1, doubles: 3 }, stands, EDITION_2026_10),
+        roundOutcome(
+          POOL,
+          { redScore: 3, blueScore: 1, doubles: 3, redVenuesWon: 0, blueVenuesWon: 0 },
+          stands,
+          EDITION_2026_10,
+        ),
       ).toEqual({
         autoOver: true,
         winnerColor: 'red',
@@ -172,7 +215,12 @@ describe('roundOutcome', () => {
 
     it('fence: under the limit, the fighter at zero still loses at the cap', () => {
       expect(
-        roundOutcome(POOL, { redScore: 0, blueScore: 2, doubles: 2 }, down(), EDITION_2026_10),
+        roundOutcome(
+          POOL,
+          { redScore: 0, blueScore: 2, doubles: 2, redVenuesWon: 0, blueVenuesWon: 0 },
+          down(),
+          EDITION_2026_10,
+        ),
       ).toEqual({
         autoOver: true,
         winnerColor: 'blue',
@@ -182,14 +230,19 @@ describe('roundOutcome', () => {
 
     it('fence: a bracket has no doubles limit, so its doubles end nothing', () => {
       expect(
-        roundOutcome(BRACKET, { redScore: 3, blueScore: 1, doubles: 3 }, down(), EDITION_2026_10),
+        roundOutcome(
+          BRACKET,
+          { redScore: 3, blueScore: 1, doubles: 3, redVenuesWon: 0, blueVenuesWon: 0 },
+          down(),
+          EDITION_2026_10,
+        ),
       ).toEqual(OPEN);
     });
   });
 
   it('is what `evaluateRound` answers, on the score its scorer gives', () => {
     const match = { ...BRACKET, redRegistrationId: 'r', blueRegistrationId: 'b' } as Match;
-    const score = { redScore: 5, blueScore: 3, doubles: 1 };
+    const score = { redScore: 5, blueScore: 3, doubles: 1, redVenuesWon: 0, blueVenuesWon: 0 };
     const scored = evaluateRound(match, [], config(), EDITION_2026_10, () => score as never);
     expect(scored).toEqual({ score, ...roundOutcome(match, score, config(), EDITION_2026_10) });
   });

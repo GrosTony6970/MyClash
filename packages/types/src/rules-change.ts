@@ -28,9 +28,14 @@ import {
 export type { FormatPhase };
 
 /** The `matchFormat` keys that hold one value per format phase. */
-const PHASED_KEYS: ReadonlySet<string> = new Set(['timeLimitsSeconds', 'bestOf', 'levelAtTime']);
+const PHASED_KEYS: ReadonlySet<string> = new Set([
+  'timeLimitsSeconds',
+  'bestOf',
+  'levelAtTime',
+  'venuesPerRound',
+]);
 
-const PER_PHASE = (key: 'timeLimitsSeconds' | 'bestOf' | 'levelAtTime') =>
+const PER_PHASE = (key: 'timeLimitsSeconds' | 'bestOf' | 'levelAtTime' | 'venuesPerRound') =>
   [
     `matchFormat.${key}.pool`,
     `matchFormat.${key}.swiss`,
@@ -57,6 +62,9 @@ export const SCORING_CHANGE_PATHS = [
   'matchFormat.maxDoubleHitOutcome',
   ...PER_PHASE('bestOf'),
   ...PER_PHASE('levelAtTime'),
+  'matchFormat.scoringUnit',
+  ...PER_PHASE('venuesPerRound'),
+  'matchFormat.stopWhenDecided',
   'winBonus',
   'doublePenaltyFormula',
   'scoreFormula',
@@ -210,6 +218,12 @@ export const rulesChangeKey: Record<RulesChangePath, string> = {
   'matchFormat.levelAtTime.swiss': 'common.rulesChange.path.levelAtTimeSwiss',
   'matchFormat.levelAtTime.bracket': 'common.rulesChange.path.levelAtTimeBracket',
   'matchFormat.levelAtTime.finals': 'common.rulesChange.path.levelAtTimeFinals',
+  'matchFormat.scoringUnit': 'common.rulesChange.path.scoringUnit',
+  'matchFormat.venuesPerRound.pool': 'common.rulesChange.path.venuesPerRoundPool',
+  'matchFormat.venuesPerRound.swiss': 'common.rulesChange.path.venuesPerRoundSwiss',
+  'matchFormat.venuesPerRound.bracket': 'common.rulesChange.path.venuesPerRoundBracket',
+  'matchFormat.venuesPerRound.finals': 'common.rulesChange.path.venuesPerRoundFinals',
+  'matchFormat.stopWhenDecided': 'common.rulesChange.path.stopWhenDecided',
   winBonus: 'common.rulesChange.path.winBonus',
   doublePenaltyFormula: 'common.rulesChange.path.doublePenaltyFormula',
   scoreFormula: 'common.rulesChange.path.scoreFormula',
@@ -235,6 +249,10 @@ const NUMBER_PATHS: ReadonlySet<RulesChangePath> = new Set<RulesChangePath>([
   'matchFormat.bestOf.swiss',
   'matchFormat.bestOf.bracket',
   'matchFormat.bestOf.finals',
+  'matchFormat.venuesPerRound.pool',
+  'matchFormat.venuesPerRound.swiss',
+  'matchFormat.venuesPerRound.bracket',
+  'matchFormat.venuesPerRound.finals',
   'winBonus',
   ...(FORFEIT_NUMBER_PATHS as ReadonlySet<RulesChangePath>),
 ]);
@@ -242,6 +260,7 @@ const NUMBER_PATHS: ReadonlySet<RulesChangePath> = new Set<RulesChangePath>([
 /** A value shown as yes or no. */
 const BOOLEAN_PATHS: ReadonlySet<RulesChangePath> = new Set<RulesChangePath>([
   'grammar.hasAfterblow',
+  'matchFormat.stopWhenDecided',
   'forfeitRules.disqualifyBeforeFirstBout',
 ]);
 
@@ -289,6 +308,10 @@ const ENUM_VALUE_KEYS: Partial<Record<RulesChangePath, Readonly<Record<string, s
     double_loss_zero_scores: 'common.rulesChange.value.doubleLoss',
     draw_zero_scores: 'common.rulesChange.value.doubleDraw',
     result_stands: 'common.rulesChange.value.resultStands',
+  },
+  'matchFormat.scoringUnit': {
+    points: 'common.rulesChange.value.scoringPoints',
+    venues: 'common.rulesChange.value.scoringVenues',
   },
   ...FORFEIT_ENUM_VALUE_KEYS,
 };

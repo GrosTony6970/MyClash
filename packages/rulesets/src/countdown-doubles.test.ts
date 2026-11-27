@@ -146,6 +146,8 @@ describe('endOnPointCapOrMaxDoubles answers what roundOutcome answers', () => {
     blueTargetPoints: 0,
     redTimesHit: 0,
     blueTimesHit: 0,
+    redVenuesWon: 0,
+    blueVenuesWon: 0,
   });
 
   it.each(cases)(

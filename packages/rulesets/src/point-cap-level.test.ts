@@ -35,6 +35,8 @@ const score = (redScore: number, blueScore: number): MatchScore => ({
   redTimesHit: 0,
   blueTimesHit: 0,
   doubles: 0,
+  redVenuesWon: 0,
+  blueVenuesWon: 0,
 });
 
 const POOL = { phaseType: 'pool' as const, matchNumberLabel: 'L1-P1-M01' };

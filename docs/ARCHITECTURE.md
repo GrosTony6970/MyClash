@@ -873,6 +873,8 @@ that `@myclash/rulesets` never becomes a dependency of `apps/web-staff` or
 | `belowZero` (`@myclash/rules`)                       | say how far under zero each side went in a bout that counts down, its unsent hits included, so both at zero names the same winner          |
 | `EDITION_2026_10` (`@myclash/rules`)                 | ask `roundOutcome` and `pointCapWinnerColor` with today's end decision when a bout carries no edition the pad knows: a name                |
 | `isDecisionEdition` (`@myclash/rules`)               | check the edition the server sends with a bout, or the tablet kept, before a decider is asked with it: an unknown name would throw there   |
+| `exchangeDeltas` (`@myclash/rules`)                  | price a queued hit with the server's pricer — its button value, or 1 in venues mode — and say which side it won a venue for                |
+| `getEffectiveVenuesPerRound` (`@myclash/rules`)      | read N, the venues of the round the pad closes, by the server's own phase dispatch                                                         |
 
 **Both fighters out of points in a bout that counts down.** A `reverse_zero_loses` board stops at
 zero, so one afterblow can leave both sides at 0. The scorer (`computeMatchFormatScore`) then says

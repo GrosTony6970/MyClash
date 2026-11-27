@@ -9,6 +9,7 @@
  * score (for clubs that just want simple pool play)."
  */
 import { z } from 'zod';
+import { exchangeDeltas } from '@myclash/rules';
 import {
   DEFAULT_MATCH_FORMAT_CONFIG,
   MatchFormatConfigSchema,
@@ -98,6 +99,9 @@ function withoutMaxDoubles(config: GenericPointsCapConfig): GenericPointsCapConf
  * Every hit is worth the one fixed `pointValues.hit`, and an afterblow counts as
  * a clean hit. A club formula ruleset no longer scores this way: it counts the
  * button's value (ruling 2026-11-27).
+ *
+ * The venues are counted on the exchanges AS FOUGHT, not as rewritten below: an
+ * afterblow is priced as a clean hit here, and still wins nobody a venue.
  */
 function computeScore(
   match: Pick<Match, 'phaseType'>,
@@ -105,7 +109,10 @@ function computeScore(
   config: GenericPointsCapConfig,
 ): MatchScore {
   const hitValue = config.pointValues.hit;
-  return computeMatchFormatScore(
+  const venues = exchanges
+    .filter((exchange) => !exchange.voided)
+    .map((exchange) => exchangeDeltas(exchange, 'full', 'points').venue);
+  const score = computeMatchFormatScore(
     match,
     exchanges.map((exchange) =>
       exchange.type === 'clean' || exchange.type === 'afterblow'
@@ -119,6 +126,11 @@ function computeScore(
     ),
     config.matchFormat,
   );
+  return {
+    ...score,
+    redVenuesWon: venues.filter((venue) => venue === 'red').length,
+    blueVenuesWon: venues.filter((venue) => venue === 'blue').length,
+  };
 }
 
 // ── Match end ─────────────────────────────────────────────────────────────────

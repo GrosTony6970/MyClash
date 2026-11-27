@@ -11,7 +11,7 @@
  * database to do it. `@myclash/rules` APPLIES a resolved ruleset to match data,
  * and needs nothing.
  */
-export { computeAfterblowDeltas } from './afterblow';
+export { computeAfterblowDeltas, exchangeDeltas } from './afterblow';
 export type { AfterblowMode } from './afterblow';
 
 export type {
@@ -48,6 +48,7 @@ export {
   getEffectiveBestOf,
   getEffectiveMatchTimeLimitSeconds,
   getEffectiveMaxDoubles,
+  getEffectiveVenuesPerRound,
   getPointCapWinnerRegistrationId,
   isDecisionEdition,
   isMedalMatchLabel,
@@ -80,6 +81,7 @@ export type {
   RoundEvaluation,
   RoundScorer,
   ScoringDirection,
+  ScoringUnit,
   TimerMode,
 } from './match-format';
 

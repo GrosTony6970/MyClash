@@ -67,6 +67,11 @@ describe('match format config', () => {
         bracket: [{ kind: 'extra_time', seconds: 60 }, { kind: 'sudden_death' }],
         finals: [{ kind: 'extra_time', seconds: 60 }, { kind: 'sudden_death' }],
       },
+      // Points, as every format was before venues; the other two are read only
+      // in venues mode. No `swiss` key — it inherits `pool`.
+      scoringUnit: 'points',
+      venuesPerRound: { pool: 5, bracket: 5, finals: 5 },
+      stopWhenDecided: true,
     });
   });
 
@@ -413,5 +418,52 @@ describe('best-of rounds', () => {
       );
       expect(ev.autoOver).toBe(false);
     });
+  });
+});
+
+describe('venues scoring config', () => {
+  it('a format holding only scoringUnit keeps it', () => {
+    // A ruleset stores only the fields its author changed, so a format holding
+    // one of these keys alone is ordinary; the legacy branch would drop it.
+    expect(normalizeMatchFormatConfig({ scoringUnit: 'venues' }).scoringUnit).toBe('venues');
+    expect(
+      normalizeMatchFormatConfig({ venuesPerRound: { pool: 7, bracket: 5, finals: 5 } })
+        .venuesPerRound,
+    ).toEqual({ pool: 7, bracket: 5, finals: 5 });
+    expect(normalizeMatchFormatConfig({ stopWhenDecided: false }).stopWhenDecided).toBe(false);
+  });
+
+  it('venues always counts up', () => {
+    expect(
+      normalizeMatchFormatConfig({
+        scoringUnit: 'venues',
+        scoringDirection: 'reverse_zero_loses',
+      }).scoringDirection,
+    ).toBe('normal');
+    expect(
+      normalizeMatchFormatConfig({
+        scoringUnit: 'points',
+        scoringDirection: 'reverse_zero_loses',
+      }).scoringDirection,
+    ).toBe('reverse_zero_loses');
+  });
+
+  it('an old config resolves to points', () => {
+    const config = normalizeMatchFormatConfig({ pointCap: 10 });
+    expect(config.scoringUnit).toBe('points');
+    expect(config.venuesPerRound).toEqual({ pool: 5, bracket: 5, finals: 5 });
+    expect(config.stopWhenDecided).toBe(true);
+  });
+
+  it('refuses a venue count that is not a positive whole number up to 50', () => {
+    for (const bad of [0, -1, 2.5, 51]) {
+      expect(() =>
+        MatchFormatConfigSchema.parse({ venuesPerRound: { pool: bad, bracket: 5, finals: 5 } }),
+      ).toThrow();
+    }
+    expect(
+      MatchFormatConfigSchema.parse({ venuesPerRound: { pool: 50, bracket: 5, finals: 5 } })
+        .venuesPerRound.pool,
+    ).toBe(50);
   });
 });

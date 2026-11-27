@@ -88,14 +88,20 @@ describe('formatPhaseOfPath', () => {
     ['matchFormat.levelAtTime.swiss', 'swiss'],
     ['matchFormat.levelAtTime.bracket', 'bracket'],
     ['matchFormat.levelAtTime.finals', 'finals'],
+    ['matchFormat.venuesPerRound.pool', 'pool'],
+    ['matchFormat.venuesPerRound.swiss', 'swiss'],
+    ['matchFormat.venuesPerRound.bracket', 'bracket'],
+    ['matchFormat.venuesPerRound.finals', 'finals'],
   ] as const)('reads %s as the %s phase', (path, phase) => {
     expect(formatPhaseOfPath(path)).toBe(phase);
   });
 
   it('gives every other path no phase', () => {
     const phased = RULES_CHANGE_PATHS.filter((path) => formatPhaseOfPath(path) !== null);
-    expect(phased).toHaveLength(12);
+    expect(phased).toHaveLength(16);
     expect(formatPhaseOfPath('matchFormat.pointCap')).toBeNull();
+    expect(formatPhaseOfPath('matchFormat.scoringUnit')).toBeNull();
+    expect(formatPhaseOfPath('matchFormat.stopWhenDecided')).toBeNull();
     expect(formatPhaseOfPath('matchFormat.softClockLimitSeconds')).toBeNull();
     expect(formatPhaseOfPath('unknown')).toBeNull();
   });
@@ -141,6 +147,19 @@ describe('rulesChangeLines', () => {
     expect(rulesChangeLines(changes, fr)).toEqual([
       "Résultat au plafond de doubles : Défaite pour les deux, 0–0 → L'assaut s'arrête, le score reste",
       'Contre-frappe : Non → Oui',
+    ]);
+  });
+
+  it('words the venues settings', () => {
+    const changes = [
+      change('matchFormat.scoringUnit', 'points', 'venues'),
+      change('matchFormat.venuesPerRound.finals', 5, 7),
+      change('matchFormat.stopWhenDecided', true, false),
+    ];
+    expect(rulesChangeLines(changes, en)).toEqual([
+      'Scoring unit: Points → Won venues',
+      'Venues per round (finals): 5 → 7',
+      'Stop a round once decided: Yes → No',
     ]);
   });
 

@@ -20,11 +20,21 @@
  * could already import. That is the same accident as the afterblow netting, one
  * type later.
  */
-import { computeAfterblowDeltas, type AfterblowMode } from './afterblow';
+import { exchangeDeltas, type AfterblowMode } from './afterblow';
 import type { Exchange, Match, MatchScore, PhaseType } from './domain';
 
 export type ScoringDirection = 'normal' | 'reverse_zero_loses';
 export type TimerMode = 'countdown' | 'countup';
+
+/**
+ * What a round counts.
+ *
+ *   points  the button values, up to the point cap — what every format did
+ *           before venues, and the default
+ *   venues  won exchanges: a clean hit is 1 to its striker, and a round ends
+ *           after `venuesPerRound` of them (see {@link roundOutcome})
+ */
+export type ScoringUnit = 'points' | 'venues';
 
 /**
  * What happens to a bout that reaches the doubles ceiling. The ceiling itself
@@ -169,6 +179,18 @@ export interface MatchFormatConfig {
    * condition may leave this phase's bout level at all.
    */
   levelAtTime: ByPhase<LevelStep[]>;
+  /**
+   * Points or venues. In venues mode `pointCap` is not read, and the direction
+   * is always `normal` (`normalizeMatchFormatConfig` resolves it so).
+   */
+  scoringUnit: ScoringUnit;
+  /** N, the venues a round is fought over, per phase. Read only in venues mode. */
+  venuesPerRound: ByPhase<number>;
+  /**
+   * End a venues round as soon as the lead cannot be caught in the venues left,
+   * rather than fight all N. Read only in venues mode.
+   */
+  stopWhenDecided: boolean;
 }
 
 /**
@@ -222,6 +244,19 @@ export function getEffectiveMatchTimeLimitSeconds(
 export function getEffectiveBestOf(match: Match, config: MatchFormatConfig): number {
   const bestOf = config.bestOf ?? { pool: 1, bracket: 1, finals: 1 };
   return forPhase(bestOf, match.phaseType, match.matchNumberLabel);
+}
+
+/**
+ * N, the venues this bout's rounds are fought over, by the one phase dispatch
+ * the time limit and best-of read — a Swiss round with no value of its own
+ * reads the pool's. Exported for the pad, which closes a round with no network
+ * and must read the N the server closes it on.
+ */
+export function getEffectiveVenuesPerRound(
+  match: Pick<Match, 'phaseType' | 'matchNumberLabel'>,
+  config: MatchFormatConfig,
+): number {
+  return forPhase(config.venuesPerRound, match.phaseType, match.matchNumberLabel);
 }
 
 /**
@@ -719,45 +754,34 @@ export function computeMatchFormatScore(
   let redTimesHit = 0;
   let blueTimesHit = 0;
   let doubles = 0;
+  let redVenuesWon = 0;
+  let blueVenuesWon = 0;
 
   for (const ex of active) {
+    // Raw button values are stored on the exchange; `exchangeDeltas` prices
+    // them under the afterblow mode and the scoring unit. Target points follow
+    // the board: in points mode they are the earned points as they always were,
+    // in venues mode a won venue's 1 rather than the button pressed.
+    const { red, blue, venue } = exchangeDeltas(ex, afterblowMode, config.scoringUnit);
+    redEarned += red;
+    blueEarned += blue;
+    redTargetPoints += red;
+    blueTargetPoints += blue;
+    if (venue === 'red') redVenuesWon += 1;
+    if (venue === 'blue') blueVenuesWon += 1;
+
+    // Who was hit, whatever the unit: a clean hit lands on the other side, and
+    // an afterblow lands on the first striker.
     switch (ex.type) {
       case 'clean':
-        if (ex.firstStrikerColor === 'red') {
-          redEarned += ex.firstStrikeValue ?? 0;
-          redTargetPoints += ex.firstStrikeValue ?? 0;
-          blueTimesHit += 1;
-        } else if (ex.firstStrikerColor === 'blue') {
-          blueEarned += ex.firstStrikeValue ?? 0;
-          blueTargetPoints += ex.firstStrikeValue ?? 0;
-          redTimesHit += 1;
-        }
+        if (ex.firstStrikerColor === 'red') blueTimesHit += 1;
+        else if (ex.firstStrikerColor === 'blue') redTimesHit += 1;
         break;
 
-      case 'afterblow': {
-        // Raw button values are stored on the exchange; the mode decides how
-        // they net. In 'deductive' the defender's afterblow is subtracted from
-        // the attacker (defender scores 0); in 'full' both keep their points.
-        const { attackerDelta, defenderDelta } = computeAfterblowDeltas(
-          afterblowMode,
-          ex.firstStrikeValue ?? 0,
-          ex.afterblowValue ?? 0,
-        );
-        if (ex.firstStrikerColor === 'red') {
-          redEarned += attackerDelta;
-          redTargetPoints += attackerDelta;
-          blueEarned += defenderDelta;
-          blueTargetPoints += defenderDelta;
-          redTimesHit += 1;
-        } else if (ex.firstStrikerColor === 'blue') {
-          blueEarned += attackerDelta;
-          blueTargetPoints += attackerDelta;
-          redEarned += defenderDelta;
-          redTargetPoints += defenderDelta;
-          blueTimesHit += 1;
-        }
+      case 'afterblow':
+        if (ex.firstStrikerColor === 'red') redTimesHit += 1;
+        else if (ex.firstStrikerColor === 'blue') blueTimesHit += 1;
         break;
-      }
 
       case 'double':
         doubles += 1;
@@ -790,6 +814,8 @@ export function computeMatchFormatScore(
       redTimesHit,
       blueTimesHit,
       doubles,
+      redVenuesWon,
+      blueVenuesWon,
     };
   }
 
@@ -805,6 +831,8 @@ export function computeMatchFormatScore(
     redTimesHit,
     blueTimesHit,
     doubles,
+    redVenuesWon,
+    blueVenuesWon,
     ...belowZero(config, redEarned, blueEarned),
   };
 }
@@ -852,10 +880,11 @@ export interface RoundEvaluation {
   /** Live score of this round (current open round, or the round being closed). */
   score: MatchScore;
   /**
-   * True when the round ended on an AUTOMATIC condition (point cap, or pool
-   * max-doubles). Time-expiry is NOT automatic — it's operator-driven (the
-   * engine never sees the clock here), so `autoOver` is false when only time
-   * would end the round; the operator closes it via the End-round action.
+   * True when the round ended on an AUTOMATIC condition (point cap, venue
+   * limit, or pool max-doubles). Time-expiry is NOT automatic — it's
+   * operator-driven (the engine never sees the clock here), so `autoOver` is
+   * false when only time would end the round; the operator closes it via the
+   * End-round action.
    */
   autoOver: boolean;
   /**
@@ -865,7 +894,7 @@ export interface RoundEvaluation {
    * here, which is what bounds the series to its `bestOf` rounds.
    */
   winnerColor: 'red' | 'blue' | null;
-  endReason: 'first_to_points' | MaxDoubleHitEndReason | null;
+  endReason: 'first_to_points' | 'venue_limit' | MaxDoubleHitEndReason | null;
 }
 
 /**
@@ -915,11 +944,11 @@ export function evaluateRound(
  * A bout of ONE round asks it too (`endOnPointCapOrMaxDoubles` in
  * `@myclash/rulesets`): the order of the cap and the doubles ceiling has this
  * one owner. The cap first, except in a bout that counts down under an edition
- * since 2026-10-11.
+ * since 2026-10-11. In venues mode the venue count takes the cap's place.
  */
 export function roundOutcome(
   match: Pick<Match, 'phaseType' | 'matchNumberLabel'>,
-  score: CapScore & Pick<MatchScore, 'doubles'>,
+  score: CapScore & Pick<MatchScore, 'doubles' | 'redVenuesWon' | 'blueVenuesWon'>,
   config: MatchFormatConfig,
   edition: DecisionEdition,
 ): Pick<RoundEvaluation, 'autoOver' | 'winnerColor' | 'endReason'> {
@@ -941,12 +970,16 @@ export function roundOutcome(
   const countdown = config.scoringDirection === 'reverse_zero_loses';
   if (atTheCeiling && countdown && COUNTDOWN_RULES[edition].doublesBeforeCap) return ceiling;
 
-  // A ROUND asks the cap exactly what a single bout asks it, through the same
-  // owner. Asking `isPointCapReached` instead closed a bracket round 10-10 with
-  // nobody winning it — one 1-1 afterblow at 9-9 in `full` mode — and a round
-  // nobody won counts for neither side, so the series never reached its win
-  // target and the bout could not finish at all.
-  if (pointCapEndsBout(match, score, config, edition)) {
+  if (config.scoringUnit === 'venues') {
+    // The venue count takes the cap's place; the cap is not read at all.
+    const venues = venueLimitOutcome(match, score, config);
+    if (venues) return venues;
+  } else if (pointCapEndsBout(match, score, config, edition)) {
+    // A ROUND asks the cap exactly what a single bout asks it, through the same
+    // owner. Asking `isPointCapReached` instead closed a bracket round 10-10 with
+    // nobody winning it — one 1-1 afterblow at 9-9 in `full` mode — and a round
+    // nobody won counts for neither side, so the series never reached its win
+    // target and the bout could not finish at all.
     return {
       autoOver: true,
       winnerColor: pointCapWinnerColor(score, config, edition),
@@ -955,4 +988,36 @@ export function roundOutcome(
   }
 
   return atTheCeiling ? ceiling : { autoOver: false, winnerColor: null, endReason: null };
+}
+
+/**
+ * Has a venues round ended on its venue count, and for whom? Null when it plays
+ * on, so the caller falls through to the doubles ceiling as a capped round does.
+ *
+ * It ends when the N venues are spent, or — with `stopWhenDecided` — as soon as
+ * the lead on the BOARD is more than the venues left. The board, not the venue
+ * count, because a card's points are on the board: a card can make a lead
+ * uncatchable early, or keep open a round one side swept on venues.
+ *
+ * The leader wins. A level board when it ends (an even N, or a card) follows
+ * the rule a level board at the point cap follows ({@link pointCapEndsBout}): a
+ * phase whose chain allows a level end draws, and any other keeps the round open
+ * for the next won venue, which puts someone ahead and ends it.
+ */
+function venueLimitOutcome(
+  match: Pick<Match, 'phaseType' | 'matchNumberLabel'>,
+  score: Pick<MatchScore, 'redScore' | 'blueScore' | 'redVenuesWon' | 'blueVenuesWon'>,
+  config: MatchFormatConfig,
+): Pick<RoundEvaluation, 'autoOver' | 'winnerColor' | 'endReason'> | null {
+  const n = getEffectiveVenuesPerRound(match, config);
+  const remaining = n - (score.redVenuesWon + score.blueVenuesWon);
+  const lead = Math.abs(score.redScore - score.blueScore);
+  if (remaining > 0 && !(config.stopWhenDecided && lead > remaining)) return null;
+
+  const leader = leadingColor(score);
+  if (leader) return { autoOver: true, winnerColor: leader, endReason: 'venue_limit' };
+  if (chainAllowsLevelEnd(config, match.phaseType, match.matchNumberLabel)) {
+    return { autoOver: true, winnerColor: null, endReason: 'venue_limit' };
+  }
+  return null;
 }

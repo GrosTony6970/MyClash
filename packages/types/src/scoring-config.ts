@@ -77,6 +77,11 @@ export const DEFAULT_MATCH_FORMAT_CONFIG: MatchFormatConfig = {
     bracket: [{ kind: 'extra_time', seconds: 60 }, { kind: 'sudden_death' }],
     finals: [{ kind: 'extra_time', seconds: 60 }, { kind: 'sudden_death' }],
   },
+  // Points, as every format was before venues. The other two are read only in
+  // venues mode; `swiss` is absent, inheriting `pool` as above.
+  scoringUnit: 'points',
+  venuesPerRound: { pool: 5, bracket: 5, finals: 5 },
+  stopWhenDecided: true,
 };
 
 export interface TournamentDisplayConfig {

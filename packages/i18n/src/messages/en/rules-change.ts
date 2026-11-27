@@ -42,6 +42,12 @@ export const rulesChange = {
     levelAtTimeSwiss: 'Level scores at time (Swiss rounds)',
     levelAtTimeBracket: 'Level scores at time (bracket)',
     levelAtTimeFinals: 'Level scores at time (finals)',
+    scoringUnit: 'Scoring unit',
+    venuesPerRoundPool: 'Venues per round (pools)',
+    venuesPerRoundSwiss: 'Venues per round (Swiss rounds)',
+    venuesPerRoundBracket: 'Venues per round (bracket)',
+    venuesPerRoundFinals: 'Venues per round (finals)',
+    stopWhenDecided: 'Stop a round once decided',
     winBonus: 'Win bonus',
     doublePenaltyFormula: 'Double-hit penalty',
     scoreFormula: 'Score formula',
@@ -73,6 +79,8 @@ export const rulesChange = {
     doubleLoss: 'Loss for both, 0–0',
     doubleDraw: 'Draw for both, 0–0',
     resultStands: 'The bout stops, the score stands',
+    scoringPoints: 'Points',
+    scoringVenues: 'Won venues',
   },
   // The forfeit rules in force (rulings 142, 145): the words of the penalty ruleset's screen.
   forfeit: {

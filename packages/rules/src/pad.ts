@@ -35,6 +35,16 @@ export { computeAfterblowDeltas } from './afterblow';
 export type { AfterblowMode } from './afterblow';
 
 /**
+ * Price a queued hit with the server's pricer: points or venues, and which side
+ * it won a venue for. A second copy on the pad would log "+2" for a hit the
+ * server scores 1 in venues mode.
+ */
+export { exchangeDeltas } from './afterblow';
+
+/** The venues a round is fought over, so the pad closes a round on the server's N. */
+export { getEffectiveVenuesPerRound } from './match-format';
+
+/**
  * The clock numeral, the phase time limit the bout counts against, the
  * `reverse_zero_loses` read-down, and the gold-score point cap.
  */
@@ -96,7 +106,13 @@ export type { DecisionEdition } from './match-format';
  * knows? An unknown one falls back to `EDITION_2026_10`, said in the console.
  */
 export { isDecisionEdition } from './match-format';
-export type { LevelStep, MatchFormatConfig, ScoringDirection, TimerMode } from './match-format';
+export type {
+  LevelStep,
+  MatchFormatConfig,
+  ScoringDirection,
+  ScoringUnit,
+  TimerMode,
+} from './match-format';
 
 export type { PhaseType } from './domain';
 

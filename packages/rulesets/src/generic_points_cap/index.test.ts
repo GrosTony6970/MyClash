@@ -72,6 +72,16 @@ describe('Generic_PointsCap', () => {
       expect(score.blueScore).toBe(0);
       expect(score.doubles).toBe(1);
     });
+
+    it('counts a venue for a clean hit and none for an afterblow, though both score', () => {
+      const exchanges = [
+        makeEx({ id: 'e1', sequence: 1, firstStrikerColor: 'red' }),
+        makeEx({ id: 'e2', sequence: 2, type: 'afterblow', afterblowValue: 1 }),
+        makeEx({ id: 'e3', sequence: 3, firstStrikerColor: 'blue', voided: true }),
+      ];
+      const score = Generic_PointsCap.computeMatchScore(BASE_MATCH, exchanges, 'full', {});
+      expect(score).toMatchObject({ redScore: 2, redVenuesWon: 1, blueVenuesWon: 0 });
+    });
   });
 
   describe('the doubles ceiling, which this ruleset does not have', () => {
