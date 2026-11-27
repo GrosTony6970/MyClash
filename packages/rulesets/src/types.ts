@@ -121,6 +121,14 @@ export interface RulesetMetadata {
    */
   hasMaxDoubles?: boolean;
   /**
+   * Whether this ruleset offers venues mode (`scoringUnit: 'venues'`). Declared
+   * for the reason `hasMaxDoubles` is: the unit lives on the SHARED match
+   * format, so a Tournament can store `venues` under a ruleset that only ever
+   * scores in points. `false` is the only value that strips it; an older ruleset
+   * that declares nothing keeps the format as stored.
+   */
+  hasVenues?: boolean;
+  /**
    * How an afterblow is WORTH points, when the ruleset has them at all.
    *
    *  - `fixed`    — the retaliation is always worth `afterblowFixedValue`,

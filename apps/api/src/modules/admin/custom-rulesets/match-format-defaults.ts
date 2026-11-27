@@ -19,6 +19,7 @@ const INNER_KEYS: Record<string, string[]> = {
   timeLimitsSeconds: Object.keys(MatchFormatConfigSchema.shape.timeLimitsSeconds.unwrap().shape),
   bestOf: Object.keys(MatchFormatConfigSchema.shape.bestOf.unwrap().shape),
   levelAtTime: Object.keys(MatchFormatConfigSchema.shape.levelAtTime.unwrap().shape),
+  venuesPerRound: Object.keys(MatchFormatConfigSchema.shape.venuesPerRound.unwrap().shape),
 };
 
 function unknownKeys(format: Record<string, unknown>): string[] {

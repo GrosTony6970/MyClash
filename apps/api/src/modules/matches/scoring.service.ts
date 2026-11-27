@@ -651,7 +651,8 @@ export class ScoringService {
     if (reason === 'first_to_points') {
       return getPointCapWinnerRegistrationId(match, score, matchFormat, edition);
     }
-    if (reason === 'max_doubles_result_stands') {
+    // A venues bout ends on the venues won: the leader wins, as under a stood max-doubles.
+    if (reason === 'max_doubles_result_stands' || reason === 'venue_limit') {
       const leader = leadingColor(score);
       if (leader === null) return null;
       return leader === 'red' ? match.redRegistrationId : match.blueRegistrationId;

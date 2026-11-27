@@ -37,13 +37,20 @@ export async function scoredRuleset(
  * `hasMaxDoubles === false` is the only case that strips. An older ruleset that
  * declares nothing keeps the ceiling, which is what every one of them did
  * before the capability existed.
+ *
+ * The scoring unit goes the same way: a ruleset that does not offer venues
+ * (`hasVenues === false`, `Generic_PointsCap`) is forced to `'points'`, or the
+ * round lifecycle would close best-of rounds on venues over a points score.
  */
 export function scoredMatchFormat(config: unknown, ruleset: Ruleset): MatchFormatConfig {
-  const matchFormat = normalizeMatchFormatConfig(
+  let matchFormat = normalizeMatchFormatConfig(
     (config as { matchFormat?: unknown } | null)?.matchFormat ?? {},
   );
   if (ruleset.metadata?.hasMaxDoubles === false) {
-    return { ...matchFormat, maxDoubleHits: null };
+    matchFormat = { ...matchFormat, maxDoubleHits: null };
+  }
+  if (ruleset.metadata?.hasVenues === false) {
+    matchFormat = { ...matchFormat, scoringUnit: 'points' };
   }
   return matchFormat;
 }

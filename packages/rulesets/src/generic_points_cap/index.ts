@@ -266,6 +266,8 @@ const GENERIC_SHARED = {
     // No doubles ceiling. Declared so the tournament form stops offering one,
     // the same way `hasAfterblow` stops it offering afterblow controls.
     hasMaxDoubles: false,
+    // No venues mode: it scores and ends in points only (see `computeScore`).
+    hasVenues: false,
     defaultAfterblowMode: null,
     afterblowValuation: null,
     afterblowFixedValue: null,

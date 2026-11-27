@@ -68,6 +68,7 @@ export interface CorrectionInput {
  */
 const DECIDED_ON_THE_BOARD: readonly string[] = [
   'first_to_points',
+  'venue_limit',
   'time_limit',
   'max_doubles',
   'max_doubles_draw',

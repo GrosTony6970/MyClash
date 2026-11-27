@@ -60,6 +60,26 @@ describe('UpdateTournamentDto — rulesetConfig.matchFormat', () => {
     ).toBe(false);
   });
 
+  it('accepts the venues keys of a match format', () => {
+    expect(
+      schema.safeParse({
+        rulesetConfig: {
+          matchFormat: {
+            scoringUnit: 'venues',
+            venuesPerRound: { pool: 5, bracket: 5, finals: 5 },
+            stopWhenDecided: false,
+          },
+        },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('refuses a scoring unit that is not one', () => {
+    expect(
+      schema.safeParse({ rulesetConfig: { matchFormat: { scoringUnit: 'goals' } } }).success,
+    ).toBe(false);
+  });
+
   it('rejects an unknown key inside bestOf (strict)', () => {
     expect(
       schema.safeParse({ rulesetConfig: { matchFormat: { bestOf: { semis: 3 } } } }).success,

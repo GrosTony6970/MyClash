@@ -714,7 +714,16 @@ describe('MatchesService', () => {
     it('recomputeMatchScore is called after every new exchange insert', async () => {
       const { service: exchangeService } = makeService({
         exchanges: [NEW_EXCHANGE, { data: { id: 'ex-1' }, error: null }],
-        matches: { rows: [{ id: 'match-1', current_round: 1, awaiting_round_advance: false }] },
+        matches: {
+          rows: [
+            {
+              id: 'match-1',
+              current_round: 1,
+              awaiting_round_advance: false,
+              match_rules: { ruleset_config: {} },
+            },
+          ],
+        },
       });
 
       await exchangeService.createExchange('match-1', {
@@ -736,7 +745,16 @@ describe('MatchesService', () => {
     it('persists clock_time_ms from dto.clockTimeMs on the inserted row', async () => {
       const { service: exchangeService, supabase } = makeService({
         exchanges: [NEW_EXCHANGE, { data: { id: 'ex-1' }, error: null }],
-        matches: { rows: [{ id: 'match-1', current_round: 1, awaiting_round_advance: false }] },
+        matches: {
+          rows: [
+            {
+              id: 'match-1',
+              current_round: 1,
+              awaiting_round_advance: false,
+              match_rules: { ruleset_config: {} },
+            },
+          ],
+        },
       });
 
       await exchangeService.createExchange('match-1', {
@@ -759,7 +777,16 @@ describe('MatchesService', () => {
     it('stamps round_number from the match current_round on the inserted row', async () => {
       const { service: exchangeService, supabase } = makeService({
         exchanges: [NEW_EXCHANGE, { data: { id: 'ex-r3' }, error: null }],
-        matches: { rows: [{ id: 'match-1', current_round: 3, awaiting_round_advance: false }] },
+        matches: {
+          rows: [
+            {
+              id: 'match-1',
+              current_round: 3,
+              awaiting_round_advance: false,
+              match_rules: { ruleset_config: {} },
+            },
+          ],
+        },
       });
 
       await exchangeService.createExchange('match-1', {
@@ -995,7 +1022,7 @@ describe('MatchesService', () => {
       // can no longer be confused for one another.
       const { service: exchangeService } = makeService({
         exchanges: { data: null, error: null },
-        matches: { data: null, error: null },
+        matches: { data: { id: 'match-1', match_rules: { ruleset_config: {} } }, error: null },
       });
 
       const start = Date.now();
