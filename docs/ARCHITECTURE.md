@@ -1291,7 +1291,9 @@ separate from `status` and means the season is **frozen**.
    points belong to persons (rulings 729, 981). The request, the direct link and
    the approval refuse a team Tournament with 409 `team_tournament_league` before
    they write; the bulk link of an Event skips its team Tournaments and answers
-   them as `skipped`. The database refuses a live link to a team Tournament, and a
+   them as `skipped`, and one that turns team while the loop runs (the 409
+   `team_tournament_league`, the door's or 0287's) is skipped, and the rest are
+   linked. The database refuses a live link to a team Tournament, and a
    switch to team under a live link (409 `league_link_blocks_team`), in migration
    0287 (`common/entrant-kind-refusal.ts` names both).
 2. When the Tournament is decided, its final ranking produces one

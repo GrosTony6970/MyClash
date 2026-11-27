@@ -6,7 +6,11 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { entrantKindRefusal, teamTournamentLeague } from '../../common/entrant-kind-refusal';
+import {
+  entrantKindRefusal,
+  isTeamTournamentLeague,
+  teamTournamentLeague,
+} from '../../common/entrant-kind-refusal';
 import type { UploadLimit } from '../../common/read-upload';
 import { ensurePublicBucket } from '../../common/storage-bucket';
 import { asEventKind, countsTowardStats, escapeHtml } from '@myclash/types';
@@ -1460,8 +1464,15 @@ export class LeaguesService {
   }
 
   /**
-   * Links every individual Tournament of the Event, and answers the team ones it skipped: they are
-   * left out before the door, which would refuse one and stop the loop halfway.
+   * Links every individual Tournament of the Event, and answers the team ones it skipped. A team
+   * one in the Event's list is left out before the door.
+   *
+   * THE RACE: an organiser switches an empty Tournament to team while this loop runs. If the switch
+   * lands after the list was read, the door refuses the link (its own read of the kind, or 0287's
+   * trigger when the switch lands between that read and the write). Either answers the 409
+   * `team_tournament_league`: that Tournament is skipped like a team one, and the loop links the
+   * rest. If the link lands first, the switch is refused instead (`league_link_blocks_team`). Any
+   * other error still stops the loop, with the links before it written.
    */
   async addEventTournamentLinks(
     leagueId: string,
@@ -1477,13 +1488,19 @@ export class LeaguesService {
     if (error) throw new BadRequestException(error.message);
     const skipped: Array<{ id: string; name: string }> = [];
     for (const t of (tournaments ?? []) as Row[]) {
+      const tournament = { id: String(t['id']), name: String(t['name']) };
       if (storedKind(t['entrant_kind']) === 'team') {
-        skipped.push({ id: String(t['id']), name: String(t['name']) });
+        skipped.push(tournament);
         continue;
       }
-      // Passes the group through — omitting it is what made every bulk-linked
-      // tournament land in the `unknown` bucket beside the grouped ones.
-      await this.addTournamentLink(leagueId, String(t['id']), userId, groupId);
+      try {
+        // Passes the group through — omitting it is what made every bulk-linked
+        // tournament land in the `unknown` bucket beside the grouped ones.
+        await this.addTournamentLink(leagueId, tournament.id, userId, groupId);
+      } catch (error) {
+        if (!isTeamTournamentLeague(error)) throw error;
+        skipped.push(tournament);
+      }
     }
     return { skipped };
   }

@@ -248,3 +248,80 @@ describe('the League manager links the whole Event', () => {
     expect(answer).toEqual({ skipped: [{ id: 't-team', name: 'Team Longsword' }] });
   });
 });
+
+/**
+ * The race: Léa links the whole Event while Marc switches the empty "Sabre Open" to team. The
+ * Event's list still says individual; Sabre's own door then refuses the link. Sabre is skipped and
+ * "Rapier Open", after it, is still linked.
+ */
+describe('a Tournament of the Event turns team while the Event is linked', () => {
+  const LISTED = [
+    { id: 't-long', name: 'Longsword Open', entrant_kind: 'individual' },
+    { id: 't-sabre', name: 'Sabre Open', entrant_kind: 'individual' },
+    { id: 't-rapier', name: 'Rapier Open', entrant_kind: 'individual' },
+  ];
+  const OK = { data: { id: 'link-1' }, error: null };
+  const kind = (entrant_kind: string) => ({ data: { entrant_kind }, error: null });
+
+  function raceHarness(links: ChainResult[], kinds: ChainResult[]) {
+    const db = mockSupabase({
+      platform_roles: { data: { role: 'platform_admin' }, error: null },
+      tournaments: [{ data: LISTED, error: null }, ...kinds],
+      league_groups: { rows: [] },
+      league_tournament_links: links,
+      league_organization_roles: { data: null, error: null },
+    });
+    const service = new LeaguesService(
+      db as never,
+      { assertOrgRole: vi.fn().mockResolvedValue(undefined) } as never,
+      {} as never,
+    );
+    return { db, service };
+  }
+
+  it.each([
+    [
+      'the database refuses its link (0287)',
+      [OK, TRIGGER_REFUSAL, OK],
+      [kind('individual'), kind('individual'), kind('individual')],
+      ['t-long', 't-sabre', 't-rapier'],
+    ],
+    [
+      'its door reads it as team',
+      [OK, OK],
+      [kind('individual'), kind('team'), kind('individual')],
+      ['t-long', 't-rapier'],
+    ],
+  ] as const)(
+    'when %s: skips it, names it, and links the next one',
+    async (_story, links, kinds, written) => {
+      const { db, service } = raceHarness([...links], [...kinds]);
+
+      const answer = await service.addEventTournamentLinks('league-fr', 'e-spring', 'u-league');
+
+      expect(selectsFor(db.from, 'tournaments')).toEqual([
+        'id, name, entrant_kind',
+        'entrant_kind',
+        'entrant_kind',
+        'entrant_kind',
+      ]);
+      expect(writesTo(db, 'league_tournament_links').map((w) => w.row)).toMatchObject(
+        written.map((id) => ({ tournament_id: id })),
+      );
+      expect(answer).toEqual({ skipped: [{ id: 't-sabre', name: 'Sabre Open' }] });
+    },
+  );
+
+  it('any other refusal still stops the loop', async () => {
+    const failed = { data: null, error: { code: '23503', message: 'foreign key' } };
+    const { db, service } = raceHarness(
+      [OK, failed, OK],
+      [kind('individual'), kind('individual'), kind('individual')],
+    );
+
+    await expect(
+      service.addEventTournamentLinks('league-fr', 'e-spring', 'u-league'),
+    ).rejects.toThrow('foreign key');
+    expect(writesTo(db, 'league_tournament_links')).toHaveLength(2);
+  });
+});

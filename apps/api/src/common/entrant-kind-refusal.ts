@@ -101,6 +101,15 @@ export function teamTournamentLeague(): ConflictException {
   return conflictOf('team_tournament_league');
 }
 
+/** Whether `error` is the 409 of a League link to a team Tournament: the door's or the trigger's. */
+export function isTeamTournamentLeague(error: unknown): boolean {
+  if (!(error instanceof ConflictException)) return false;
+  const body = error.getResponse();
+  return (
+    typeof body === 'object' && (body as { reason?: unknown }).reason === 'team_tournament_league'
+  );
+}
+
 /** The 409 for a write a kind trigger refused; null for any other error. */
 export function entrantKindRefusal(
   error: { code?: string | null; message?: string | null } | null | undefined,
