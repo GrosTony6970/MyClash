@@ -70,7 +70,8 @@ interface DraftRow {
   source?: string | null;
   applied_at?: string | null;
   created_at?: string;
-  updated_at?: string;
+  /** NOT NULL (0031), and every write to the row sets it: the claim matches on it. */
+  updated_at: string;
   events?: { organization_id?: string | null } | null;
 }
 
@@ -300,7 +301,7 @@ export class OrganizerAIAssistantService {
 
     const validation = this.validateActions(draft.draft_type, draft.proposed_actions_json);
     if (!validation.ok) throw new BadRequestException(validation.errors.join('; '));
-    await this.claimDraft(eventId, draftId, actorUserId);
+    await this.claimDraft(draft, actorUserId);
 
     // NOTE: applyAction dispatches to separate services (createTournament,
     // generatePools, …) that each write via stateless PostgREST calls, so a
@@ -351,11 +352,15 @@ export class OrganizerAIAssistantService {
    * actions run twice. The claim is one conditional write: only one Apply still finds the row
    * `ready`, and the other refuses before it runs any action.
    *
+   * The claim also matches the `updated_at` the Apply read. Every edit writes `updated_at`, so
+   * an edit in another tab between the read and the claim (4 Pools made 6) empties the claim:
+   * the Apply refuses rather than run the 4 Pools it read under a row that says 6 ran.
+   *
    * The window: the status CHECK (0031) has no in-between value, so the claim writes `applied`
    * at once. From the claim until the last action ends, the row reads `applied` while its
    * actions still run. A failed action turns it `failed` (`applyDraft`'s catch).
    */
-  private async claimDraft(eventId: string, draftId: string, actorUserId: string) {
+  private async claimDraft(draft: DraftRow, actorUserId: string) {
     const now = new Date().toISOString();
     const { data, error } = await this.supabase.service
       .from('organizer_ai_assistant_drafts')
@@ -365,13 +370,17 @@ export class OrganizerAIAssistantService {
         applied_by_user_id: actorUserId,
         updated_at: now,
       })
-      .eq('id', draftId)
-      .eq('event_id', eventId)
+      .eq('id', draft.id)
+      .eq('event_id', draft.event_id)
       .eq('status', 'ready')
+      .eq('updated_at', draft.updated_at)
       .select('id')
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
-    if (!data) throw draftClosed('This draft is already applied, being applied, or rejected.');
+    if (!data)
+      throw draftClosed(
+        'This draft changed since it was opened. Reload it to see where it stands.',
+      );
   }
 
   private async applyAction(eventId: string, actorUserId: string, action: Record<string, unknown>) {

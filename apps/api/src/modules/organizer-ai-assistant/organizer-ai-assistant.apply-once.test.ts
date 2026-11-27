@@ -14,17 +14,20 @@ const DRAFTS = 'organizer_ai_assistant_drafts';
 /**
  * The drafts table as one stateful row, so two Applies race the way they do in the database. A
  * read answers the row as it is now. A write applies only when its `.eq` filters still match the
- * row, and answers `{ id }` when it did, `null` when it matched nothing.
+ * row, and answers `{ id }` when it did, `null` when it matched nothing. `afterRead` runs once,
+ * after the first read: another tab's write landing between the Apply's read and its claim.
  */
-function oneDraft() {
+function oneDraft(afterRead?: (row: Record<string, unknown>) => void) {
   const row: Record<string, unknown> = {
     id: 'draft-1',
     event_id: 'event-1',
     draft_type: 'pool_plan',
     status: 'ready',
     proposed_actions_json: [{ kind: 'generate_pools', tournamentId: 't-1', poolCount: 4 }],
+    updated_at: '2026-11-27T09:00:00.000Z',
     events: { organization_id: 'org-1' },
   };
+  let pending = afterRead;
   const queries: Chain[] = [];
   const tournaments = mockSupabase({ tournaments: { rows: [{ id: 't-1', event_id: 'event-1' }] } });
   mockSupabaseFrom.mockImplementation((table: string) => {
@@ -34,7 +37,12 @@ function oneDraft() {
     queries.push(c);
     c.maybeSingle.mockImplementation(async () => {
       const update = c.update.mock.calls[0]?.[0] as Record<string, unknown> | undefined;
-      if (!update) return { data: { ...row }, error: null };
+      if (!update) {
+        const read = { ...row };
+        pending?.(row);
+        pending = undefined;
+        return { data: read, error: null };
+      }
       const matches = c.eq.mock.calls.every(([column, value]) => row[column as string] === value);
       if (!matches) return { data: null, error: null };
       Object.assign(row, update);
@@ -69,7 +77,7 @@ describe('OrganizerAIAssistantService.applyDraft, twice at once', () => {
       reason: {
         response: {
           code: 'draft_closed',
-          message: 'This draft is already applied, being applied, or rejected.',
+          message: 'This draft changed since it was opened. Reload it to see where it stands.',
         },
       },
     });
@@ -100,8 +108,30 @@ describe('OrganizerAIAssistantService.applyDraft, twice at once', () => {
       ['id', 'draft-1'],
       ['event_id', 'event-1'],
       ['status', 'ready'],
+      ['updated_at', '2026-11-27T09:00:00.000Z'],
     ]);
     expect(claim.select.mock.calls).toEqual([['id']]);
+  });
+
+  it('refuses, and runs nothing, when another tab edited the draft after the read', async () => {
+    // Tab B reads 4 Pools and presses Apply; tab A's edit to 6 Pools lands before B's claim.
+    // The row is still `ready`, so only the `updated_at` the Apply read tells the two apart.
+    mockGeneratePools.mockResolvedValue({ poolCount: 6 });
+    const { row } = oneDraft((stored) => {
+      stored['proposed_actions_json'] = [
+        { kind: 'generate_pools', tournamentId: 't-1', poolCount: 6 },
+      ];
+      stored['updated_at'] = '2026-11-27T09:00:01.000Z';
+    });
+
+    await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toMatchObject({
+      response: {
+        code: 'draft_closed',
+        message: 'This draft changed since it was opened. Reload it to see where it stands.',
+      },
+    });
+    expect(mockGeneratePools).not.toHaveBeenCalled();
+    expect(row['status']).toBe('ready');
   });
 
   it("keeps the claim's applied_at when an action fails, so the draft stays closed", async () => {
