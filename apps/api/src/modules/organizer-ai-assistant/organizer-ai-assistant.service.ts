@@ -88,6 +88,35 @@ const ACTION_KIND_TO_DRAFT_TYPE: Record<string, OrganizerAIDraftType> = {
   assign_referee: 'referee_assignments',
 };
 
+/** How a caller of `createDraftFromAction` names the draft it saves. */
+export interface ActionDraftOptions {
+  /** Who proposed it: the in-app chat, or Claude through the MCP server (call S). */
+  source: 'chat' | 'mcp';
+  conversationId?: string;
+  summary?: string;
+  tournamentId?: string | null;
+  /** The row's prompt (NOT NULL). Default: the summary, else "<who> proposed: <kind>". */
+  prompt?: string;
+  /** Merged into the create audit row's payload (MCP: `via`, `clientId`, `clientName`). */
+  auditExtra?: Record<string, unknown>;
+}
+
+/**
+ * The one draft type a list of actions makes (call T): at least one action, all of one
+ * kind. A draft type allows one kind, so a mixed list is refused before anything is saved.
+ */
+function draftTypeOf(actions: Array<Record<string, unknown>>) {
+  const kinds = [...new Set(actions.map((action) => String(action['kind'])))];
+  if (kinds.length === 0) throw new BadRequestException('A draft needs at least one action');
+  if (kinds.length > 1) {
+    throw new BadRequestException(`A draft holds actions of one kind, not ${kinds.join(', ')}`);
+  }
+  const kind = kinds[0] as string;
+  const draftType = ACTION_KIND_TO_DRAFT_TYPE[kind];
+  if (!draftType) throw new BadRequestException(`Unsupported action: ${kind}`);
+  return { kind, draftType };
+}
+
 interface ParsedAIDraft {
   summary: string;
   actions: Array<Record<string, unknown>>;
@@ -165,50 +194,42 @@ export class OrganizerAIAssistantService {
   }
 
   /**
-   * Create a pending draft from a single, already-structured write action.
-   * Used by the organizer chatbot: one write tool call → one draft, reusing the
-   * same validation + confirm/apply lifecycle as the form flow. The draft is
-   * `ready` when it validates and `failed` otherwise; the caller surfaces it as
-   * a proposal card and confirms via `applyDraft`.
+   * Create a pending draft from already-structured write actions, all of one kind.
+   * Used by the organizer chatbot (one write tool call → one draft) and by Claude
+   * through the MCP server (one draft tool call → one draft of one or several
+   * actions), reusing the same validation + confirm/apply lifecycle as the form
+   * flow. The draft is `ready` when it validates and `failed` otherwise; the
+   * organiser confirms it via `applyDraft`.
    */
   async createDraftFromAction(
     eventId: string,
     actorUserId: string,
-    action: Record<string, unknown>,
-    opts: { conversationId?: string; summary?: string; tournamentId?: string | null } = {},
+    actions: Array<Record<string, unknown>>,
+    opts: ActionDraftOptions,
   ) {
     const event = await this.getEvent(eventId);
     await this.organizations.assertOrgRole(event.organization_id, actorUserId, 'admin');
 
-    const kind = String(action['kind']);
-    const draftType = ACTION_KIND_TO_DRAFT_TYPE[kind];
-    if (!draftType) throw new BadRequestException(`Unsupported chat action: ${kind}`);
-
-    const validation = this.validateActions(draftType, [action]);
+    const { kind, draftType } = draftTypeOf(actions);
+    const validation = this.validateActions(draftType, actions);
     const status: DraftStatus = validation.ok ? 'ready' : 'failed';
-    const tournamentId =
-      opts.tournamentId ??
-      (typeof action['tournamentId'] === 'string' ? (action['tournamentId'] as string) : null);
-    // The id may be the model's own tool argument: it is checked like any caller's.
-    await assertTournamentsBelongToEvent(this.supabase.service, eventId, [tournamentId]);
+    const tournamentId = await this.draftTournament(eventId, actions, opts.tournamentId);
 
+    const chat = opts.source === 'chat';
     const row = {
       event_id: eventId,
       tournament_id: tournamentId,
       actor_user_id: actorUserId,
       draft_type: draftType,
-      prompt: opts.summary ?? `Chatbot proposed: ${kind}`,
+      prompt: opts.prompt ?? opts.summary ?? `${chat ? 'Chatbot' : 'Claude'} proposed: ${kind}`,
       summary: opts.summary ?? null,
-      proposed_actions_json: [action],
-      validation_state: {
-        ok: validation.ok,
-        warnings: validation.warnings,
-        errors: validation.errors,
-      },
+      proposed_actions_json: actions,
+      validation_state: validation,
       status,
       error: status === 'failed' ? validation.errors.join('; ') : null,
-      ai_usage_feature: 'organizer_chat',
-      source: 'chat',
+      // Call D: a draft from Claude spends no AI usage of ours; the column keeps its default.
+      ...(chat ? { ai_usage_feature: 'organizer_chat' } : {}),
+      source: opts.source,
       conversation_id: opts.conversationId ?? null,
     };
 
@@ -217,17 +238,35 @@ export class OrganizerAIAssistantService {
       .insert(row)
       .select('*')
       .single();
-    if (error || !data)
-      throw new BadRequestException(error?.message ?? 'Failed to save chat draft');
+    if (error || !data) throw new BadRequestException(error?.message ?? 'Failed to save draft');
 
     await this.audit(actorUserId, eventId, 'event.ai_assistant_draft_created', data['id'], {
+      ...opts.auditExtra,
       draftType,
       status,
-      source: 'chat',
+      source: opts.source,
       conversationId: opts.conversationId ?? null,
     });
 
     return this.mapDraft(data as DraftRow);
+  }
+
+  /**
+   * The Tournament a draft from actions is about: the caller's, else its first action's. Every
+   * action's own Tournament is checked as well: the ids may be the model's own tool arguments,
+   * and each is checked like any caller's.
+   */
+  private async draftTournament(
+    eventId: string,
+    actions: Array<Record<string, unknown>>,
+    stored: string | null | undefined,
+  ): Promise<string | null> {
+    const named = actions.map((action) =>
+      typeof action['tournamentId'] === 'string' ? action['tournamentId'] : null,
+    );
+    const tournamentId = stored ?? named[0] ?? null;
+    await assertTournamentsBelongToEvent(this.supabase.service, eventId, [tournamentId, ...named]);
+    return tournamentId;
   }
 
   async listDrafts(eventId: string, actorUserId: string) {

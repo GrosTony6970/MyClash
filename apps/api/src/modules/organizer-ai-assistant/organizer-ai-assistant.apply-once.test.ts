@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mockSupabase } from '../../common/testing/supabase-chain';
 import {
   chain,
@@ -80,6 +80,8 @@ function oneDraft({
  */
 describe('OrganizerAIAssistantService.applyDraft, twice at once', () => {
   beforeEach(resetHarness);
+  // A spy restored at a test's end stays in place when that test fails first.
+  afterEach(() => vi.restoreAllMocks());
 
   it('runs the actions once; the second Apply refuses with draft_closed', async () => {
     mockGeneratePools.mockResolvedValue({ poolCount: 4 });
@@ -195,6 +197,5 @@ describe('OrganizerAIAssistantService.applyDraft, twice at once', () => {
     expect(logged.mock.calls).toEqual([['Draft draft-1 not marked failed: connection reset']]);
     // What a lost mark leaves (claimDraft's docstring): `applied`, no error, still closed.
     expect(row['status']).toBe('applied');
-    logged.mockRestore();
   });
 });

@@ -128,3 +128,33 @@ describe('OrganizerChatService.rejectProposal', () => {
     expect(supabase.writes).toEqual([]);
   });
 });
+
+/** Call S: the chat's write tool call becomes a draft of that one action, `source = 'chat'`. */
+describe('OrganizerChatService proposes a write', () => {
+  it('hands the assistant the one action, named as the chat', async () => {
+    const assistant = { createDraftFromAction: vi.fn().mockResolvedValue({ id: 'draft-1' }) };
+    const none = {} as never;
+    const service = new OrganizerChatService(none, none, none, assistant as never, none, none);
+    const call = {
+      id: 'call-1',
+      name: 'generate_pools',
+      arguments: { tournamentId: OWN_TOURNAMENT, poolCount: 4 },
+    };
+
+    await service['proposeWrite'](EVENT, 'user-1', 'chat-1', call, 'Four pools.');
+
+    expect(assistant.createDraftFromAction.mock.calls).toEqual([
+      [
+        EVENT,
+        'user-1',
+        [{ kind: 'generate_pools', tournamentId: OWN_TOURNAMENT, poolCount: 4 }],
+        {
+          source: 'chat',
+          conversationId: 'chat-1',
+          summary: 'Four pools.',
+          tournamentId: OWN_TOURNAMENT,
+        },
+      ],
+    ]);
+  });
+});

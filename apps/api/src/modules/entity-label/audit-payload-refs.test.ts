@@ -106,6 +106,23 @@ describe('collectPayloadRefs', () => {
     expect(collect('some.unmapped.action', payload).refs).toEqual([]);
   });
 
+  it("names a draft's chat and Tournament, and leaves the MCP app's id raw", () => {
+    // The form's, the chat's and Claude's create rows (createDraft, createDraftFromAction).
+    const { refs } = collect('event.ai_assistant_draft_created', {
+      via: 'mcp',
+      clientId: C,
+      clientName: 'Claude',
+      draftType: 'pool_plan',
+      source: 'mcp',
+      conversationId: A,
+      tournamentId: B,
+    });
+    expect(refs).toEqual([
+      { pointer: '/conversationId', kind: 'organizer_chat_conversation', id: A },
+      { pointer: '/tournamentId', kind: 'tournament', id: B },
+    ]);
+  });
+
   it('never emits a ref for a value that is not UUID-shaped', () => {
     // `entity_id: 'batch'` is real (clubs.service bulk actions); probing it
     // would raise 22P02 invalid input syntax for type uuid.

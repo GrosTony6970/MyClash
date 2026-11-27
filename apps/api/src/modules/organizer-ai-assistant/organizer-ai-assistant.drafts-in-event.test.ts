@@ -102,7 +102,9 @@ describe('createDraftFromAction', () => {
     const supabase = seeded();
 
     await expect(
-      service().createDraftFromAction(EVENT, 'user-1', poolsAction(FOREIGN_TOURNAMENT)),
+      service().createDraftFromAction(EVENT, 'user-1', [poolsAction(FOREIGN_TOURNAMENT)], {
+        source: 'chat',
+      }),
     ).rejects.toThrow('Every Tournament must belong to this event');
 
     expect(storedTournaments(supabase)).toEqual([]);
@@ -112,7 +114,8 @@ describe('createDraftFromAction', () => {
   it("stores a chat draft about the Event's own Tournament", async () => {
     const supabase = seeded();
 
-    await service().createDraftFromAction(EVENT, 'user-1', poolsAction(OWN_TOURNAMENT), {
+    await service().createDraftFromAction(EVENT, 'user-1', [poolsAction(OWN_TOURNAMENT)], {
+      source: 'chat',
       conversationId: 'chat-1',
       tournamentId: OWN_TOURNAMENT,
     });
@@ -121,17 +124,40 @@ describe('createDraftFromAction', () => {
     expect(storedTournaments(supabase)).toEqual([OWN_TOURNAMENT]);
   });
 
-  it('checks the Tournament the draft stores, not the one its action names', async () => {
+  it('checks the Tournament the draft stores as well as the one its action names', async () => {
     const supabase = seeded();
 
     await expect(
-      service().createDraftFromAction(EVENT, 'user-1', poolsAction(OWN_TOURNAMENT), {
+      service().createDraftFromAction(EVENT, 'user-1', [poolsAction(OWN_TOURNAMENT)], {
+        source: 'chat',
         conversationId: 'chat-1',
         tournamentId: FOREIGN_TOURNAMENT,
       }),
     ).rejects.toThrow('Every Tournament must belong to this event');
 
     expect(storedTournaments(supabase)).toEqual([]);
-    expectOneTournamentRead(supabase, FOREIGN_TOURNAMENT);
+    expect(filtersFor(supabase.from, 'tournaments', 'in')).toEqual([
+      ['id', [FOREIGN_TOURNAMENT, OWN_TOURNAMENT]],
+    ]);
+  });
+
+  it("refuses another Event's Tournament named by the SECOND action, as by the first", async () => {
+    const supabase = seeded();
+
+    await expect(
+      service().createDraftFromAction(
+        EVENT,
+        'user-1',
+        [poolsAction(OWN_TOURNAMENT), poolsAction(FOREIGN_TOURNAMENT)],
+        { source: 'mcp' },
+      ),
+    ).rejects.toThrow('Every Tournament must belong to this event');
+
+    expect(storedTournaments(supabase)).toEqual([]);
+    expect(selectsFor(supabase.from, 'tournaments')).toEqual(['id']);
+    expect(filtersFor(supabase.from, 'tournaments', 'eq')).toEqual([['event_id', EVENT]]);
+    expect(filtersFor(supabase.from, 'tournaments', 'in')).toEqual([
+      ['id', [OWN_TOURNAMENT, FOREIGN_TOURNAMENT]],
+    ]);
   });
 });

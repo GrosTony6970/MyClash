@@ -293,7 +293,8 @@ export class OrganizerChatService {
     summary: string,
   ) {
     const action = { kind: call.name, ...call.arguments };
-    return this.assistant.createDraftFromAction(eventId, userId, action, {
+    return this.assistant.createDraftFromAction(eventId, userId, [action], {
+      source: 'chat',
       conversationId,
       summary: summary || undefined,
       tournamentId:
