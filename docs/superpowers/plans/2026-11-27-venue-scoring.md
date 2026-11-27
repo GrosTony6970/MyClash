@@ -196,7 +196,43 @@ return atTheCeiling ? ceiling : OPEN;
 
 ---
 
-### Task 4: Organiser screens and words (`apps/web-admin`, `packages/i18n`, `apps/web-public`)
+### Task 4: "Venues 3/5" counter on the pad and the TV scoreboard (`packages/ui`, `apps/web-staff`)
+
+Added by the operator on 2026-11-27, after the plan was approved.
+
+**Files:**
+
+- Create: `packages/ui/src/utils/venues-won.ts` (one shared counter)
+- Modify: `packages/ui/src/components/TVScoreboard.tsx` (~line 403, beside the round counter)
+- Modify: `apps/web-staff/src/components/MatchHeader.tsx` (~line 186, beside the round counter)
+- Modify: `apps/web-staff/src/offline/pad-series.ts` (its venue filter from Task 3 calls `isWonVenue`, so the pad's count and the counter agree)
+- Modify: `packages/i18n/src/messages/en/scoring.ts` and `fr/scoring.ts` (beside `rounds.counter`)
+- Test: `packages/ui/src/utils/venues-won.test.ts`, the existing TVScoreboard test (`grep -l TVScoreboard packages/ui/src --include=*.test.*`), `apps/web-staff/src/components/MatchHeader.test.tsx` (create if none)
+
+**Interfaces:**
+
+- Consumes: `getEffectiveVenuesPerRound` and `MatchFormatConfig.scoringUnit` (Task 1, through `@myclash/types`), the pad's per-round venue counts (Task 3).
+- Produces: `isWonVenue(row: Pick<ExchangeRow, 'type' | 'voided' | 'scoringSide'>): boolean` (non-voided `clean` with a `scoringSide`) and `venuesWonInRound(rows: readonly ExchangeRow[], round: number): number` (rows with `(round_number ?? 1) === round` that pass `isWonVenue`).
+
+- [ ] **Step 1: Write the failing tests.**
+  - `venuesWonInRound`: rows of round 1 = clean red, clean blue, afterblow, double, no_exchange, voided clean red; one row of round 2 = clean red → round 1 gives 2, round 2 gives 1. A row with no `round_number` counts in round 1.
+  - TVScoreboard: in a venues bout (`matchFormat.scoringUnit 'venues'`, `venuesPerRound.pool 5`, pool phase) with 3 won venues in the current round, the text `Venues 3/5` renders. In a points bout no venues counter renders.
+  - MatchHeader: the same two cases, from the pad's current-round count.
+
+- [ ] **Step 2: Run and see them fail.** Run `pnpm --filter @myclash/ui test -- venues-won TVScoreboard` and `pnpm --filter @myclash/web-staff test -- MatchHeader`.
+
+- [ ] **Step 3: Implement.**
+  - The i18n key is `scoring.rounds.venuesCounter`: EN "Venues {won}/{total}" / FR « Venues {won}/{total} ».
+  - The TV shows the counter when `match.matchFormat?.scoringUnit === 'venues'`, with `total = getEffectiveVenuesPerRound(match, match.matchFormat)` and `won = venuesWonInRound(exchanges, match.currentRound ?? 1)`. It uses the same pill markup and token classes as the round counter beside it.
+  - The pad passes MatchHeader its current round's `redVenuesWon + blueVenuesWon` from `padSeries`, so queued offline hits count, and shows the counter in venues mode only.
+
+- [ ] **Step 4: Run and see them pass.** Then run `pnpm --filter @myclash/ui build`, and `pnpm --filter @myclash/i18n test` directly.
+
+- [ ] **Step 5: Commit.** Message: `feat(scoring): a venues bout shows how many venues are won`.
+
+---
+
+### Task 5: Organiser screens and words (`apps/web-admin`, `packages/i18n`, `apps/web-public`)
 
 **Files:**
 
@@ -231,7 +267,7 @@ return atTheCeiling ? ceiling : OPEN;
 
 ---
 
-### Task 5: Close the slice
+### Task 6: Close the slice
 
 **Files:**
 

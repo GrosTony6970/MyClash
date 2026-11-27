@@ -37,13 +37,15 @@ Why: reproduce an existing competition rulebook ("règlement d'une compétition"
 - Works fully offline on the scoring pad (hard rule 3): the pad closes a round on the same rule,
   from the same `@myclash/rules` owner.
 - The server derives the score from exchanges (hard rule 1); nothing new is stored as truth.
+- A "Venues 3/5" counter (won venues of the current round / N) shows on the pad and on the TV
+  scoreboard in a venues bout, beside the existing "Round 2/3" counter (operator, 2026-11-27).
+  Both count from exchange rows they already hold, by one shared predicate; nothing is added to
+  the display payload.
 
 ## Non-goals
 
 - No new built-in ruleset (it would copy the engine; one owner per behaviour).
 - No change to `points` mode behaviour. TF_v1 golden test stays byte-identical (hard rule 2).
-- No "venue 3/5" counter on the pad / TV scoreboard in this slice (proposed follow-up; say if
-  wanted now).
 - No change to max-doubles: it stays its own setting (pool/Swiss only), as today.
 
 ## Anti-goals
