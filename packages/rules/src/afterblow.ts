@@ -89,7 +89,9 @@ export function exchangeDeltas(
     const value = unit === 'venues' ? 1 : (ex.firstStrikeValue ?? 0);
     return { ...sides(value, 0), venue: striker };
   }
-  if (ex.type === 'afterblow' && unit === 'points') {
+  // Venues only when it says venues: a format read off an older copy, with no
+  // unit, prices as points did.
+  if (ex.type === 'afterblow' && unit !== 'venues') {
     const { attackerDelta, defenderDelta } = computeAfterblowDeltas(
       afterblowMode,
       ex.firstStrikeValue ?? 0,

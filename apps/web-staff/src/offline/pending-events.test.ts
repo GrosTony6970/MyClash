@@ -169,6 +169,26 @@ describe('pendingRowsForMatch', () => {
     expect(row.defenderDelta).toBe(0);
   });
 
+  // A format kept before venues existed carries no unit: its hits price as points did.
+  it('prices a queued hit with no scoring unit as points', () => {
+    // Called directly: `map`'s default would fill the missing unit in.
+    const noUnit = (entry: OutboxEntry) =>
+      pendingRowsForMatch({
+        entries: [entry],
+        config: { ...DEFAULT_SCORING_CONFIG, afterblowMode: 'deductive' },
+        scoringUnit: undefined as unknown as ScoringUnit,
+        serverExchanges: [],
+        serverPenalties: [],
+        serverProtests: [],
+      }).exchanges[0]!;
+    expect(noUnit(queued({ type: 'clean', firstStrikeValue: 2 })).scoreDelta).toBe(2);
+    const afterblow = noUnit(queued({ type: 'afterblow', firstStrikeValue: 2, afterblowValue: 1 }));
+    expect({ score: afterblow.scoreDelta, defender: afterblow.defenderDelta }).toEqual({
+      score: 1,
+      defender: 0,
+    });
+  });
+
   it('claims no points for a double or a no-exchange', () => {
     const { exchanges } = map([
       queued({ type: 'double', firstStrikerColor: undefined, firstStrikeValue: undefined }),

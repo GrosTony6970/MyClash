@@ -78,7 +78,7 @@ export function rulesOnPad(
   const stale = config !== undefined && (!rules || config === null || !config.fresh);
   const tournament = config ?? null;
   if (!rules) {
-    const matchFormat = tournament?.matchFormat ?? DEFAULT_MATCH_FORMAT_CONFIG;
+    const matchFormat = wholeFormat(tournament?.matchFormat ?? DEFAULT_MATCH_FORMAT_CONFIG);
     return {
       scoringConfig: inForce(tournament?.scoringConfig ?? DEFAULT_SCORING_CONFIG, matchFormat),
       matchFormat,
@@ -86,13 +86,34 @@ export function rulesOnPad(
     };
   }
   const display = tournament?.scoringConfig ?? DEFAULT_SCORING_CONFIG;
+  const matchFormat = wholeFormat(rules.matchFormat);
   return {
     scoringConfig: inForce(
       { ...display, afterblowMode: rules.afterblowMode, buttons: rules.buttons },
-      rules.matchFormat,
+      matchFormat,
     ),
-    matchFormat: rules.matchFormat,
+    matchFormat,
     stale,
+  };
+}
+
+/** The keys venues scoring added to the format: a copy kept before it holds none of them. */
+type VenuesKeys = 'scoringUnit' | 'venuesPerRound' | 'stopWhenDecided';
+
+/**
+ * A format as every reader on the pad takes it: whole. A copy the tablet kept before venues
+ * scoring (the bout's own rules, or its Tournament's `/match-config`) lacks the venues keys; each
+ * is filled from the default, so the copy scores as points, as it did, and never reads a venue
+ * count of `undefined`.
+ */
+function wholeFormat(
+  format: Omit<MatchFormatConfig, VenuesKeys> & Partial<Pick<MatchFormatConfig, VenuesKeys>>,
+): MatchFormatConfig {
+  return {
+    ...format,
+    scoringUnit: format.scoringUnit ?? DEFAULT_MATCH_FORMAT_CONFIG.scoringUnit,
+    venuesPerRound: format.venuesPerRound ?? DEFAULT_MATCH_FORMAT_CONFIG.venuesPerRound,
+    stopWhenDecided: format.stopWhenDecided ?? DEFAULT_MATCH_FORMAT_CONFIG.stopWhenDecided,
   };
 }
 

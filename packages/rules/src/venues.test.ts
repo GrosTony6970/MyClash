@@ -12,6 +12,9 @@ import {
   EDITION_2026_10,
   exchangeDeltas,
   getEffectiveVenuesPerRound,
+  isPointCapReached,
+  pointCapEndsBout,
+  pointCapWinnerColor,
   roundOutcome,
   type AfterblowMode,
   type Exchange,
@@ -166,6 +169,38 @@ describe('exchangeDeltas', () => {
     ['clean, no striker', noStriker, 'full', 'venues', { red: 0, blue: 0, venue: null }],
   ])('%s, %s afterblow, %s', (_name, exchange, mode, unit, expected) => {
     expect(exchangeDeltas(exchange, mode, unit)).toEqual(expected);
+  });
+
+  // A format read off an old copy carries no unit: it scores as points did, never as venues.
+  it('prices an exchange with no unit as points', () => {
+    const missing = undefined as unknown as ScoringUnit;
+    expect(exchangeDeltas(clean('red', 2), 'full', missing)).toEqual({
+      red: 2,
+      blue: 0,
+      venue: 'red',
+    });
+    expect(exchangeDeltas(afterblow, 'full', missing)).toEqual({ red: 2, blue: 1, venue: null });
+  });
+});
+
+/**
+ * A venues bout keeps a point cap in its format (hidden, never asked). It must
+ * never read as reached: the venue count takes the cap's place.
+ */
+describe('the point cap in venues mode', () => {
+  const lowCap = config({ pointCap: 2 });
+  const board = { redScore: 3, blueScore: 0 };
+
+  it('is never reached, and names nobody', () => {
+    expect(isPointCapReached(board, lowCap)).toBe(false);
+    expect(pointCapWinnerColor(board, lowCap, EDITION_2026_10)).toBeNull();
+    expect(pointCapEndsBout(POOL, board, lowCap, EDITION_2026_10)).toBe(false);
+  });
+
+  it('is read as before in points mode', () => {
+    const points = config({ pointCap: 2, scoringUnit: 'points' });
+    expect(isPointCapReached(board, points)).toBe(true);
+    expect(pointCapWinnerColor(board, points, EDITION_2026_10)).toBe('red');
   });
 });
 

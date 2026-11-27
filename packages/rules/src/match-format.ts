@@ -591,6 +591,8 @@ export function pointCapWinnerColor(
   config: MatchFormatConfig,
   edition: DecisionEdition,
 ): 'red' | 'blue' | null {
+  // Nobody reached a cap that is not reached: every branch below is a side at it.
+  if (!isPointCapReached(score, config)) return null;
   if (config.scoringDirection === 'reverse_zero_loses') {
     // Both out of points: the leader `capLeader` names by the edition (the
     // fighter less far below zero since 2026-10-11). Level answers nobody.
@@ -636,7 +638,7 @@ export function pointCapEndsBout(
   config: MatchFormatConfig,
   edition: DecisionEdition,
 ): boolean {
-  if (!isPointCapReached(score as MatchScore, config)) return false;
+  if (!isPointCapReached(score, config)) return false;
   if (capLeader(score, config, edition) !== null) return true;
   return chainAllowsLevelEnd(config, match.phaseType, match.matchNumberLabel);
 }
@@ -854,7 +856,16 @@ export function belowZero(
   };
 }
 
-export function isPointCapReached(score: MatchScore, config: MatchFormatConfig): boolean {
+/**
+ * Has a side reached the point cap? The ONE test of it: {@link pointCapWinnerColor}
+ * and {@link pointCapEndsBout} ask it first.
+ *
+ * Never in venues mode. A venues format still carries a cap (hidden in the
+ * editor, never asked), and the venue count takes its place
+ * ({@link roundOutcome}). Read here, a low cap ended a venues bout on its board.
+ */
+export function isPointCapReached(score: CapScore, config: MatchFormatConfig): boolean {
+  if (config.scoringUnit === 'venues') return false;
   if (config.scoringDirection === 'reverse_zero_loses') {
     return score.redScore <= 0 || score.blueScore <= 0;
   }

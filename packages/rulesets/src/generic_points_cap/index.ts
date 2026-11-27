@@ -19,6 +19,7 @@ import {
   EDITION_2026_04,
   EDITION_2026_10,
   type DecisionEdition,
+  type MatchFormatConfig,
 } from '../match-format';
 import type {
   AfterblowMode,
@@ -110,6 +111,15 @@ function withoutMaxDoubles(config: GenericPointsCapConfig): GenericPointsCapConf
  * reason `withoutMaxDoubles` gives: a club formula ruleset parses through the
  * same schema and DOES offer venues.
  */
+/**
+ * The format this ruleset plays: in points, whatever unit it stores. Its scorer and its end both
+ * read this, since the cap is never reached in venues mode (`isPointCapReached`).
+ */
+const inPoints = (matchFormat: MatchFormatConfig): MatchFormatConfig => ({
+  ...matchFormat,
+  scoringUnit: 'points',
+});
+
 function computeScore(
   match: Pick<Match, 'phaseType'>,
   exchanges: Exchange[],
@@ -131,7 +141,7 @@ function computeScore(
           }
         : exchange,
     ),
-    { ...config.matchFormat, scoringUnit: 'points' },
+    inPoints(config.matchFormat),
   );
   return {
     ...score,
@@ -159,7 +169,7 @@ function matchOver(
   config: GenericPointsCapConfig,
   edition: DecisionEdition,
 ): MatchEndDecision {
-  if (pointCapEndsBout(match, score, config.matchFormat, edition)) {
+  if (pointCapEndsBout(match, score, inPoints(config.matchFormat), edition)) {
     return { isOver: true, reason: 'first_to_points' };
   }
   return { isOver: false, reason: null };

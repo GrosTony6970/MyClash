@@ -49,6 +49,12 @@ describe('"End match" at the venue limit', () => {
     expect(endIsEarly(venues(3), 'pool', null, 30_000, board(1, 0), EDITION_2026_10)).toBe(true);
   });
 
+  it('reads no point cap: a board over a low cap, with venues left, is still early', () => {
+    const lowCap = { ...venues(5), pointCap: 2 };
+    expect(endIsEarly(lowCap, 'pool', null, 30_000, board(3, 0), EDITION_2026_10)).toBe(true);
+    expect(pressedOn(board(3, 0), lowCap, POOL, EDITION_2026_10)).toEqual({ red: 3, blue: 0 });
+  });
+
   it('presses the End on the board as it stands, naming its leader', () => {
     expect(limitEnd(board(2, 1), POOL, venues(3), EDITION_2026_10)).toBeNull();
     expect(pressedOn(board(2, 1), venues(3), POOL, EDITION_2026_10)).toEqual({

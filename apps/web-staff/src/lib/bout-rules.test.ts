@@ -55,6 +55,29 @@ describe('rulesOnPad', () => {
     ]);
   });
 
+  // A copy kept on the tablet before venues existed holds none of the venues keys: it scores as
+  // points, as it did, and every reader downstream sees a whole format.
+  it('reads a kept format with no venues keys as points, with the default venues', () => {
+    const {
+      scoringUnit: _u,
+      venuesPerRound: _v,
+      stopWhenDecided: _s,
+      ...old
+    } = DEFAULT_MATCH_FORMAT_CONFIG;
+    const kept = old as MatchFormatConfig;
+    for (const on of [
+      rulesOnPad({ ...RULES, matchFormat: kept }, config(true)),
+      rulesOnPad(undefined, { ...config(false), matchFormat: kept }),
+    ]) {
+      expect(on.matchFormat).toMatchObject({
+        scoringUnit: 'points',
+        venuesPerRound: DEFAULT_MATCH_FORMAT_CONFIG.venuesPerRound,
+        stopWhenDecided: DEFAULT_MATCH_FORMAT_CONFIG.stopWhenDecided,
+      });
+      expect(on.scoringConfig.buttons.clean.length).toBeGreaterThan(1);
+    }
+  });
+
   it('says so when the display came off the tablet', () => {
     expect(rulesOnPad(RULES, config(false))).toMatchObject({ stale: true });
   });
