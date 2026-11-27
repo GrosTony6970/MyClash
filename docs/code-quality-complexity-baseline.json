@@ -121,6 +121,7 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/compensation/page.tsx",
     "apps/web-admin/app/org/[slug]/events/[eventId]/compensation/plan/page.tsx",
     "apps/web-admin/app/org/[slug]/events/[eventId]/matches/[matchId]/page.tsx",
+    "apps/web-admin/app/org/[slug]/events/[eventId]/page.status-confirm.test.tsx",
     "apps/web-admin/app/org/[slug]/events/[eventId]/page.tsx",
     "apps/web-admin/app/org/[slug]/events/[eventId]/persons/import/page.tsx",
     "apps/web-admin/app/org/[slug]/events/[eventId]/persons/page.tsx",
