@@ -1,7 +1,7 @@
 import { act, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as ApiClient from '@myclash/api-client';
-import { normalizeMatchFormatConfig } from '@myclash/rulesets';
+import { normalizeMatchFormatConfig, parseMatchFormatConfig } from '@myclash/rulesets';
 import { type } from '../../../archived-page.fixtures';
 import { button, EFFECTIVE_RULES } from './page.fixtures';
 import {
@@ -156,6 +156,23 @@ describe('the Match format tab', () => {
     await save();
     expect(opened.saved).toEqual([
       { rulesetConfig: { matchFormat: { scoringUnit: 'venues', venuesPerRound: { pool: 7 } } } },
+    ]);
+  });
+
+  it('back in points, shows the countdown a venues Tournament stores, and sends a pick of count up', async () => {
+    // As the API answers it: the direction stored, not the count-up a venues bout plays.
+    const matchFormat = parseMatchFormatConfig({
+      scoringUnit: 'venues',
+      scoringDirection: 'reverse_zero_loses',
+    });
+    opened = await openTab('match-format', { effectiveRules: { matchFormat } });
+    await set('Score by', 'points');
+    expect(valueOf('Scoring direction')).toBe('reverse_zero_loses');
+
+    await set('Scoring direction', 'normal');
+    await save();
+    expect(opened.saved).toEqual([
+      { rulesetConfig: { matchFormat: { scoringUnit: 'points', scoringDirection: 'normal' } } },
     ]);
   });
 

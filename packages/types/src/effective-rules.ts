@@ -17,6 +17,10 @@ export interface EffectiveTfRules {
 
 /** The settings a Tournament on a ruleset starts from: its ruleset's seed at the pinned version. */
 export interface RulesStart {
+  /**
+   * As the engine applies it, except the direction: the one the Tournament stores, which the
+   * screens edit (a venues bout plays it as count-up, `formatInForce`).
+   */
   matchFormat: MatchFormatConfig;
   /** Null for a ruleset whose engine is not TF_v1's (`isCodedRuleset`). */
   tf: EffectiveTfRules | null;

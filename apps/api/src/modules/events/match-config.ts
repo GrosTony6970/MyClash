@@ -10,7 +10,11 @@ import {
 } from '../../common/auth/competition-visibility';
 import type { EventAuthzDeps } from '../../common/auth/event-authz';
 import type { RulesetResolver } from '../matches/ruleset-resolver.service';
-import { scoredMatchFormat, scoredRuleset } from '../matches/scored-match-format';
+import {
+  editedMatchFormat,
+  scoredMatchFormat,
+  scoredRuleset,
+} from '../matches/scored-match-format';
 import { cardAndForfeitRules } from '../penalties/forfeit-rules-in-force';
 import { pairOf } from './audited-rules-write';
 import { normalizeRulesetVersion } from './ruleset-defaults';
@@ -111,7 +115,10 @@ function forfeitAsksFor(deps: EventAuthzDeps, tournamentId: string) {
 /** A Tournament row as `GET /tournaments/:id` answers it (`getTournamentById`). */
 type TournamentRow = Record<string, unknown>;
 
-/** Settings and a scoring config as the engine applies them, on the pair `ruleset` scores. */
+/**
+ * Settings and a scoring config as the engine applies them, on the pair `ruleset` scores. The
+ * one exception is the direction, which is the stored one (`editedMatchFormat`): the screens edit it.
+ */
 function rulesOf(
   row: TournamentRow,
   settings: unknown,
@@ -124,7 +131,7 @@ function rulesOf(
   const baseCode = row['ruleset_base_code'];
   const coded = isCodedRuleset(code, typeof baseCode === 'string' ? baseCode : null);
   return {
-    matchFormat: scoredMatchFormat(settings, ruleset),
+    matchFormat: editedMatchFormat(settings, ruleset),
     // A coded ruleset is parsed by TF_v1's schema (`validateTournamentRulesetConfig`).
     tf: coded ? tfRulesOf(parsed as TFv1Config) : null,
     scoring: normalizeTournamentScoringConfig(scoring),

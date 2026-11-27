@@ -46,6 +46,15 @@ export async function scoredRuleset(
  * a ruleset forced to points plays the direction its Tournament stores, as its engine does.
  */
 export function scoredMatchFormat(config: unknown, ruleset: Ruleset): MatchFormatConfig {
+  return formatInForce(editedMatchFormat(config, ruleset));
+}
+
+/**
+ * The match format the settings screens edit: the ruleset's strips, and the direction the
+ * Tournament STORES. Shown in force, a venues Tournament that stores a countdown would read
+ * "count up", and once back in points a pick of "count up" would change nothing and send nothing.
+ */
+export function editedMatchFormat(config: unknown, ruleset: Ruleset): MatchFormatConfig {
   let matchFormat = parseMatchFormatConfig(
     (config as { matchFormat?: unknown } | null)?.matchFormat ?? {},
   );
@@ -55,5 +64,5 @@ export function scoredMatchFormat(config: unknown, ruleset: Ruleset): MatchForma
   if (ruleset.metadata?.hasVenues === false) {
     matchFormat = { ...matchFormat, scoringUnit: 'points' };
   }
-  return formatInForce(matchFormat);
+  return matchFormat;
 }
