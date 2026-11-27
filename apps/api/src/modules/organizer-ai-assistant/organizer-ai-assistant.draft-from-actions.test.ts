@@ -20,6 +20,9 @@ function seeded() {
     tournaments: { rows: [{ id: TOURNAMENT, event_id: EVENT }] },
     [DRAFTS]: { rows: [], returning: { id: 'draft-1' } },
     audit_log: { data: null, error: null },
+    // The answer names the placements' Matches and pistes (call U); this suite is about the row.
+    matches: { rows: [] },
+    lices: { rows: [] },
   });
   mockSupabaseFrom.mockImplementation((table: string) => supabase.from(table));
   return supabase;

@@ -61,6 +61,26 @@ function expectOneTournamentRead(supabase: ReturnType<typeof seeded>, tournament
   expect(filtersFor(supabase.from, 'tournaments', 'in')).toEqual([['id', [tournamentId]]]);
 }
 
+/**
+ * A stored draft: the membership check of `checked`, then the answer's read of the name of the
+ * Tournament its action holds, `named` (call U).
+ */
+function expectCheckThenNameRead(
+  supabase: ReturnType<typeof seeded>,
+  checked: string,
+  named = checked,
+) {
+  expect(selectsFor(supabase.from, 'tournaments')).toEqual(['id', 'id, name']);
+  expect(filtersFor(supabase.from, 'tournaments', 'eq')).toEqual([
+    ['event_id', EVENT],
+    ['event_id', EVENT],
+  ]);
+  expect(filtersFor(supabase.from, 'tournaments', 'in')).toEqual([
+    ['id', [checked]],
+    ['id', [named]],
+  ]);
+}
+
 describe('createDraft', () => {
   beforeEach(resetHarness);
 
@@ -90,7 +110,9 @@ describe('createDraft', () => {
       tournamentId: OWN_TOURNAMENT,
     });
 
-    expectOneTournamentRead(supabase, OWN_TOURNAMENT);
+    // The model's action names `t-1` (the harness's answer): the form flow checks only the
+    // Tournament the organiser picked, and the answer names whatever the action holds.
+    expectCheckThenNameRead(supabase, OWN_TOURNAMENT, 't-1');
     expect(storedTournaments(supabase)).toEqual([OWN_TOURNAMENT]);
   });
 });
@@ -120,7 +142,7 @@ describe('createDraftFromAction', () => {
       tournamentId: OWN_TOURNAMENT,
     });
 
-    expectOneTournamentRead(supabase, OWN_TOURNAMENT);
+    expectCheckThenNameRead(supabase, OWN_TOURNAMENT);
     expect(storedTournaments(supabase)).toEqual([OWN_TOURNAMENT]);
   });
 

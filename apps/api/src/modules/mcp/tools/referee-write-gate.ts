@@ -13,6 +13,7 @@ import {
   refereeReasonsText,
 } from '@myclash/rulesets/scheduling/referee-reason-text';
 import { ForbiddenException } from '@nestjs/common';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { assertCanManageEvent } from '../../../common/auth/event-authz';
 import { OperationalUnavailableException } from '../../../common/operational-exception';
 import { assertNotReadOnly } from '../../../common/read-only-mode';
@@ -86,9 +87,9 @@ export interface RefereeSkill {
   name: string;
 }
 
-/** The Event's roles (call P). A failed read throws. */
-export async function eventSkills(deps: McpToolDeps, eventId: string): Promise<RefereeSkill[]> {
-  const { data, error } = await deps.supabase.service
+/** The Event's roles (call P), also a draft's role names (call U). A failed read throws. */
+export async function eventSkills(db: SupabaseClient, eventId: string): Promise<RefereeSkill[]> {
+  const { data, error } = await db
     .from('referee_skills')
     .select('id, name, event_id')
     .or(`event_id.is.null,event_id.eq.${eventId}`);

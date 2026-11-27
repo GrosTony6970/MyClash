@@ -34,6 +34,15 @@ export * from './password';
 export * from './penalties';
 export * from './pin-strength';
 export * from './programme';
+// Types only: a draft's actions by name, answered by the API (MCP slice 4b, call U).
+export type {
+  ReadableDraftAction,
+  ReadableMatch,
+  ReadableMissing,
+  ReadableName,
+  ReadablePhase,
+  ReadablePool,
+} from './readable-draft';
 export * from './persons';
 export * from './platform-role';
 export * from './referee-availability';

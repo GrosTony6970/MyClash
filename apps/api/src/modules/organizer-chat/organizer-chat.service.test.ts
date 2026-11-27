@@ -129,6 +129,75 @@ describe('OrganizerChatService.rejectProposal', () => {
   });
 });
 
+/**
+ * Call U and ruling 995: a chat proposal is the assistant's own answer for its draft, so the chat
+ * card reads the same names as the assistant page ("Longsword Open", never its id).
+ */
+describe('OrganizerChatService.getConversation', () => {
+  it("answers each proposal as the assistant answers its draft, by name, at the chat's Event", async () => {
+    const supabase = mockSupabase({
+      events: { rows: [{ id: EVENT, organization_id: 'org-1', name: 'Spring Open' }] },
+      organizer_chat_conversations: { rows: [{ id: 'chat-1', event_id: EVENT }] },
+      organizer_chat_messages: {
+        rows: [
+          {
+            id: 'msg-1',
+            conversation_id: 'chat-1',
+            role: 'assistant',
+            content: 'Four pools.',
+            proposed_draft_id: 'draft-1',
+          },
+        ],
+      },
+      organizer_ai_assistant_drafts: {
+        rows: [
+          {
+            id: 'draft-1',
+            event_id: EVENT,
+            draft_type: 'pool_plan',
+            status: 'ready',
+            proposed_actions_json: [
+              { kind: 'generate_pools', tournamentId: OWN_TOURNAMENT, poolCount: 4 },
+            ],
+          },
+        ],
+      },
+      tournaments: { rows: [{ id: OWN_TOURNAMENT, event_id: EVENT, name: 'Longsword Open' }] },
+    });
+    const organizations = { assertOrgRole: vi.fn().mockResolvedValue(undefined) };
+    const none = {} as never;
+    const assistant = new OrganizerAIAssistantService(
+      supabase as never,
+      none,
+      none,
+      none,
+      none,
+      none,
+      none,
+    );
+    const service = new OrganizerChatService(
+      supabase as never,
+      none,
+      organizations as never,
+      assistant,
+      none,
+      none,
+    );
+
+    const conversation = await service.getConversation(EVENT, 'chat-1', 'user-1');
+
+    expect(conversation.messages[0]?.proposal).toMatchObject({
+      id: 'draft-1',
+      status: 'ready',
+      readable: [{ kind: 'generate_pools', tournament: { name: 'Longsword Open' }, poolCount: 4 }],
+    });
+    const drafts = 'organizer_ai_assistant_drafts';
+    expect(selectsFor(supabase.from, drafts)).toEqual(['*']);
+    expect(filtersFor(supabase.from, drafts, 'eq')).toEqual([['event_id', EVENT]]);
+    expect(filtersFor(supabase.from, drafts, 'in')).toEqual([['id', ['draft-1']]]);
+  });
+});
+
 /** Call S: the chat's write tool call becomes a draft of that one action, `source = 'chat'`. */
 describe('OrganizerChatService proposes a write', () => {
   it('hands the assistant the one action, named as the chat', async () => {

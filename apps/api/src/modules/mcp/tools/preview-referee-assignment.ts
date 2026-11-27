@@ -246,7 +246,7 @@ export async function previewRefereeAssignment(
   const found = await findMatch(deps, tournamentId, args.match);
   if (isRefusal(found)) return found;
   const { match } = found;
-  const skills = await eventSkills(deps, event.id);
+  const skills = await eventSkills(deps.supabase.service, event.id);
   const skill = findSkill(skills, args.role, event);
   if (isRefusal(skill)) return skill;
   const person =

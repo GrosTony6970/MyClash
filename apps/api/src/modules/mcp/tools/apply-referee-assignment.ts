@@ -246,7 +246,9 @@ export async function applyRefereeAssignment(
   // lock there is no call to the auth server, only database reads, so no apply of the Event
   // waits on the auth server.
   const clientName = await appName(deps, caller.clientId);
-  const skill = (await eventSkills(deps, event.id)).find((s) => s.id === token.role);
+  const skill = (await eventSkills(deps.supabase.service, event.id)).find(
+    (s) => s.id === token.role,
+  );
   if (!skill) return STALE;
   // One gate, recheck and write at a time per Event: a second apply judges after the first wrote.
   const done = await runOnePerEvent(event.id, () => gateRecheckWrite(deps, caller, token, skill));

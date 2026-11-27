@@ -451,7 +451,10 @@ export class OrganizerChatService {
     const draftIds = messages
       .map((m) => m.proposed_draft_id)
       .filter((v): v is string => typeof v === 'string');
-    const drafts = draftIds.length ? await this.loadDrafts(draftIds) : new Map();
+    // The assistant owns a draft's answer, its names included (call U): a proposal is that draft.
+    const drafts = draftIds.length
+      ? await this.assistant.draftsById(conversation.event_id, draftIds)
+      : new Map();
 
     return {
       id: conversation.id,
@@ -469,24 +472,5 @@ export class OrganizerChatService {
           createdAt: m.created_at,
         })),
     };
-  }
-
-  private async loadDrafts(ids: string[]) {
-    const { data } = await this.supabase.service
-      .from('organizer_ai_assistant_drafts')
-      .select('id, draft_type, status, summary, proposed_actions_json, validation_state')
-      .in('id', ids);
-    const map = new Map<string, unknown>();
-    for (const row of (data ?? []) as Array<Record<string, unknown>>) {
-      map.set(String(row['id']), {
-        id: row['id'],
-        draftType: row['draft_type'],
-        status: row['status'],
-        summary: row['summary'] ?? null,
-        proposedActions: row['proposed_actions_json'] ?? [],
-        validationState: row['validation_state'] ?? { ok: false, warnings: [], errors: [] },
-      });
-    }
-    return map;
   }
 }

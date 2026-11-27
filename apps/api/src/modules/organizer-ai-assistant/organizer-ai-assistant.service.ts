@@ -21,6 +21,7 @@ import type {
   UpdateOrganizerAIDraftDto,
 } from './dto/organizer-ai-assistant.dto';
 import { assertMatchesBelongToEvent, assertTournamentsBelongToEvent } from '../events/in-event';
+import { readableDraftActions } from './readable-draft';
 
 type DraftStatus = 'draft' | 'ready' | 'failed' | 'applied' | 'rejected';
 
@@ -193,7 +194,7 @@ export class OrganizerAIAssistantService {
       tournamentId: dto.tournamentId ?? null,
     });
 
-    return this.mapDraft(data as DraftRow);
+    return this.draftView(eventId, data as DraftRow);
   }
 
   /**
@@ -251,7 +252,7 @@ export class OrganizerAIAssistantService {
       conversationId: opts.conversationId ?? null,
     });
 
-    return this.mapDraft(data as DraftRow);
+    return this.draftView(eventId, data as DraftRow);
   }
 
   /**
@@ -282,13 +283,28 @@ export class OrganizerAIAssistantService {
       .order('created_at', { ascending: false })
       .limit(50);
     if (error) throw new BadRequestException(error.message);
-    return ((data ?? []) as DraftRow[]).map((row) => this.mapDraft(row));
+    return this.draftViews(eventId, (data ?? []) as DraftRow[]);
   }
 
   async getDraft(eventId: string, draftId: string, actorUserId: string) {
     const draft = await this.getDraftRow(eventId, draftId);
     await this.assertDraftAccess(draft, actorUserId);
-    return this.mapDraft(draft);
+    return this.draftView(eventId, draft);
+  }
+
+  /**
+   * The Event's drafts of `ids`, by id, as `getDraft` answers each: the chat's proposals. The
+   * caller has checked the actor (the chat asks org admin first, as `assertDraftAccess`).
+   */
+  async draftsById(eventId: string, ids: string[]) {
+    const { data, error } = await this.supabase.service
+      .from('organizer_ai_assistant_drafts')
+      .select('*')
+      .eq('event_id', eventId)
+      .in('id', ids);
+    if (error) throw new BadRequestException(error.message);
+    const views = await this.draftViews(eventId, (data ?? []) as DraftRow[]);
+    return new Map(views.map((view) => [view.id as string, view]));
   }
 
   async updateDraft(
@@ -337,7 +353,7 @@ export class OrganizerAIAssistantService {
       draftType: draft.draft_type,
     });
 
-    return this.mapDraft(data as DraftRow);
+    return this.draftView(eventId, data as DraftRow);
   }
 
   async applyDraft(eventId: string, draftId: string, actorUserId: string) {
@@ -785,7 +801,24 @@ export class OrganizerAIAssistantService {
     });
   }
 
-  private mapDraft(row: DraftRow | Record<string, unknown>) {
+  /**
+   * The drafts as the API answers them: each row's fields, and its actions by name beside the
+   * raw ones (call U). One batched read per kind of id for all the drafts, not one per draft.
+   */
+  private async draftViews(eventId: string, rows: DraftRow[]) {
+    const readable = await readableDraftActions(
+      this.supabase.service,
+      eventId,
+      rows.map((row) => row.proposed_actions_json),
+    );
+    return rows.map((row, index) => ({ ...this.mapDraft(row), readable: readable[index]! }));
+  }
+
+  private async draftView(eventId: string, row: DraftRow) {
+    return (await this.draftViews(eventId, [row]))[0]!;
+  }
+
+  private mapDraft(row: DraftRow) {
     return {
       id: row['id'],
       eventId: row['event_id'],

@@ -1,11 +1,15 @@
 'use client';
 
+import type { ReadableDraftAction } from '@myclash/types';
+
 export interface ChatProposal {
   id: string;
   draftType: string;
   status: 'draft' | 'ready' | 'failed' | 'applied' | 'rejected';
   summary: string | null;
   proposedActions: Array<Record<string, unknown>>;
+  /** The actions by name, as the assistant answers a draft (call U). */
+  readable: ReadableDraftAction[];
   validationState: { ok?: boolean; warnings?: string[]; errors?: string[] };
 }
 

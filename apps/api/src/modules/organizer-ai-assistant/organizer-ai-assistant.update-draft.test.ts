@@ -35,6 +35,8 @@ function drafts(before: DraftState, then = before) {
   const write = mockSupabase({
     [DRAFTS]: { rows: [draftRow(then)] },
     audit_log: { data: null, error: null },
+    // The answer names the draft's Tournament (call U); this suite is about the write.
+    tournaments: { rows: [] },
   });
   let draftCalls = 0;
   mockSupabaseFrom.mockImplementation((table: string) =>
