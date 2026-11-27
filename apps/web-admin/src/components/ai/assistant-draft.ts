@@ -17,13 +17,13 @@ export interface AssistantDraft {
   readable: ReadableDraftAction[];
   validationState: { ok?: boolean; warnings?: string[]; errors?: string[] };
   status: 'draft' | 'ready' | 'failed' | 'applied' | 'rejected';
-  /** An Apply started: on a `failed` draft, it was partly applied (ruling 997). */
+  /** An Apply started: on a `failed` draft, it stopped before it finished (ruling 997). */
   applyStarted: boolean;
   error: string | null;
   createdAt?: string;
 }
 
-/** A `failed` draft whose Apply started: its first actions ran, and it stays as it is. */
+/** A `failed` draft whose Apply started: part of it may have run, and it stays as it is. */
 export function partlyApplied(draft: Pick<AssistantDraft, 'status' | 'applyStarted'>): boolean {
   return draft.status === 'failed' && draft.applyStarted;
 }

@@ -1353,7 +1353,7 @@ export const organizer = {
     scheduleCollision:
       "Un combat de ce brouillon chevauche un autre combat sur sa piste. Rien n'a été déplacé.",
     partlyApplied:
-      "Appliqué en partie avant l'échec. Il ne peut être ni appliqué à nouveau ni rejeté.",
+      "L'application s'est arrêtée avant la fin. Une partie a pu s'exécuter, donc ce brouillon ne peut plus être appliqué — vérifiez l'événement, puis créez un nouveau brouillon.",
     applySuccess: 'Brouillon appliqué.',
     applyError: "Impossible d'appliquer le brouillon.",
     applyFoughtBouts:

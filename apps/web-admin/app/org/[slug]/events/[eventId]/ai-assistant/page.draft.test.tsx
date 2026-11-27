@@ -196,12 +196,12 @@ describe('Apply and Reject', () => {
     expect(button('Reject')).toBeUndefined();
   });
 
-  it('a partly applied draft says so, and offers neither Apply nor Reject (ruling 997)', async () => {
+  it('a draft whose Apply stopped says so, and offers neither Apply nor Reject (ruling 997)', async () => {
     const partly = draftOf([POOLS], { status: 'failed', applyStarted: true });
     page = await openEventPage(<EventAIAssistantPage />, reads(partly));
 
     expect(text()).toContain(
-      'Partly applied before it failed. It cannot be applied again or rejected.',
+      'Apply stopped before it finished. Part of it may have run, so it cannot be applied again — check the Event, then make a new draft.',
     );
     expect(button('Apply')).toBeUndefined();
     expect(button('Reject')).toBeUndefined();

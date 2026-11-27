@@ -39,26 +39,25 @@ function draftClosed(message: string): ConflictException {
 
 /**
  * Why a draft is closed, or null while it is open. A draft whose Apply started is closed too,
- * even when an action then failed: the claim set `applied_at`, a failure after one or more
- * actions keeps it, and the row reads `failed` ("Partially applied 1/2…"). Its first actions
- * ran, so an edit back to `ready` and a second Apply would run them again (the Tournament created
- * twice). It cannot be rejected either (ruling 997): it stays `failed`, and the page says it was
- * partly applied. A draft that failed the shape check, or whose first action failed (the failure
- * mark clears `applied_at`, `markApplyFailed`), never ran anything and stays open.
+ * even when an action then failed: the claim set `applied_at`, the failure keeps it, and the
+ * row reads `failed` ("Partially applied 1/2…"). Part of it may have run, the first action's own
+ * writes too (Generate Pools inserts the phase, then fails), so an edit back to `ready` and a
+ * second Apply could run that again (the Tournament created twice). It cannot be rejected
+ * either (ruling 997): it stays `failed`, and the page says Apply stopped before it finished. A
+ * draft that failed the shape check never ran: it has no `applied_at` and stays open.
  */
 function closedReason(draft: Pick<DraftRow, 'status' | 'applied_at'>): string | null {
   if (!OPEN_STATUSES.includes(draft.status)) return `This draft is already ${draft.status}.`;
   if (applyStarted(draft)) {
-    return 'This draft was partly applied before it failed. It cannot be changed, applied again or rejected.';
+    return 'An Apply of this draft stopped before it finished. It cannot be changed, applied again or rejected.';
   }
   return null;
 }
 
 /**
- * Did an Apply of this draft start? The claim sets `applied_at`, and only the failure mark of an
- * Apply that ran no action clears it (`markApplyFailed`), so an applied draft and a partly
- * applied one both answer yes. The page reads it on a `failed` draft to say "partly applied" and to hide Apply and
- * Reject (ruling 997).
+ * Did an Apply of this draft start? The claim sets `applied_at` and nothing clears it, so an
+ * applied draft and one whose Apply stopped both answer yes. The page reads it on a `failed`
+ * draft to say Apply stopped before it finished, and to hide Apply and Reject (ruling 997).
  */
 function applyStarted(draft: Pick<DraftRow, 'applied_at'>): boolean {
   return Boolean(draft.applied_at);
@@ -431,18 +430,15 @@ export class OrganizerAIAssistantService {
   }
 
   /**
-   * The failure mark of an Apply whose claim landed, after `applied` of its actions ran. When
-   * none ran (the first action failed: a slug taken since the save), the draft goes back to open:
-   * `failed`, with the claim's `applied_at` and `applied_by_user_id` cleared, so it can be edited
-   * and applied again. Nothing ran, so a second run repeats nothing. When one or more ran, the
-   * claim's mark stays and the draft is closed, partly applied (ruling 997, `closedReason`).
+   * The failure mark of an Apply whose claim landed, after `applied` of its actions completed.
+   * The claim's `applied_at` and `applied_by_user_id` stay, so the draft stays closed (ruling
+   * 997, `closedReason`), even when `applied` is 0: an action that did not complete may still
+   * have written part of its work (a schedule batch writes row by row; Generate Pools inserts the
+   * phase, then fails), and a second Apply would run that again.
    *
-   * A schedule draft is written in one call (`applySchedule`), so it counts 0 on any failure and
-   * reopens. Its write can fail on a database error after some rows moved ("k/N placements
-   * applied", in the error): a second run puts the same bouts on the same places again.
-   *
-   * The race: from the claim until this write the row reads `applied`, so no edit, Apply or
-   * Reject from another tab lands in between. The write matches the id and the Event.
+   * The race: the claim wrote `applied`, and no other path writes an `applied` row. The write
+   * matches that status too, with the id and the Event, so it cannot touch a row another path
+   * changed since the claim.
    */
   private async markApplyFailed(
     draft: DraftRow,
@@ -452,17 +448,16 @@ export class OrganizerAIAssistantService {
   ) {
     const total = draft.proposed_actions_json.length;
     const message = err instanceof Error ? err.message : 'unknown error';
-    const reopen = applied === 0 ? { applied_at: null, applied_by_user_id: null } : {};
     const { error: markError } = await this.supabase.service
       .from('organizer_ai_assistant_drafts')
       .update({
         status: 'failed',
         error: `Partially applied ${applied}/${total} action(s) before failing: ${message}`,
         updated_at: new Date().toISOString(),
-        ...reopen,
       })
       .eq('id', draft.id)
-      .eq('event_id', draft.event_id);
+      .eq('event_id', draft.event_id)
+      .eq('status', 'applied');
     // Logged, never thrown: the action's own error is the one the organiser needs.
     if (markError) this.logger.error(`Draft ${draft.id} not marked failed: ${markError.message}`);
     await this.audit(
@@ -535,9 +530,9 @@ export class OrganizerAIAssistantService {
    *
    * The window: the status CHECK (0031) has no in-between value, so the claim writes `applied`
    * at once. From the claim until the last action ends, the row reads `applied` while its
-   * actions still run. A failed action turns it `failed` (`markApplyFailed`), open again when no
-   * action ran. A crash leaves the row `applied` with no error: a process killed between the
-   * claim and the end, or a failure write that itself fails (logged). The draft stays closed then.
+   * actions still run. A failed action turns it `failed` (`markApplyFailed`). A crash leaves the
+   * row `applied` with no error: a process killed between the claim and the end, or a failure
+   * write that itself fails (logged). The draft stays closed either way.
    */
   private async claimDraft(draft: DraftRow, actorUserId: string) {
     const now = new Date().toISOString();

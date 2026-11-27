@@ -1355,7 +1355,8 @@ export const organizer = {
       'This draft is already applied, partly applied or rejected, perhaps in another tab. It cannot change any more.',
     scheduleCollision:
       'A bout in this draft overlaps another bout on its piste. Nothing was moved.',
-    partlyApplied: 'Partly applied before it failed. It cannot be applied again or rejected.',
+    partlyApplied:
+      'Apply stopped before it finished. Part of it may have run, so it cannot be applied again — check the Event, then make a new draft.',
     applySuccess: 'Draft applied.',
     applyError: 'Could not apply draft.',
     applyFoughtBouts:

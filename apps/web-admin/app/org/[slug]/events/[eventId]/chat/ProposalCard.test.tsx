@@ -33,10 +33,10 @@ describe('the chat proposal card', () => {
     expect(text).not.toMatch(UUID);
   });
 
-  it('says a partly applied proposal was partly applied, not that it failed its check', () => {
+  it('says Apply of the proposal stopped before it finished, not that it failed its check', () => {
     const text = cardText(draftOf([POOLS], { status: 'failed', applyStarted: true }));
 
-    expect(text).toContain('Partly applied before it failed.');
+    expect(text).toContain('Apply stopped before it finished. Part of it may have run');
     expect(text).not.toContain('validation errors');
   });
 });

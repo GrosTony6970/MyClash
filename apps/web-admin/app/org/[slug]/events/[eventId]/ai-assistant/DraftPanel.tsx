@@ -16,8 +16,8 @@ interface Props {
 
 /**
  * The open draft: its state, its checks, its actions in words (ruling 993) and its Apply and
- * Reject. A draft whose Apply started has neither: an applied one is done, and a partly applied
- * one says so and stays as it is (ruling 997).
+ * Reject. A draft whose Apply started has neither: an applied one is done, and one whose Apply
+ * stopped before it finished says so and stays as it is (ruling 997).
  */
 export function DraftPanel({ draft, busy, isReadOnly, onApply, onReject, t }: Props) {
   return (

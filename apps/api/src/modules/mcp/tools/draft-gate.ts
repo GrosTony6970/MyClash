@@ -13,7 +13,7 @@
  * from the catalogue, the schedule board fills a piste the draft places a bout on, the
  * registrations a bracket without `qualifyCount` counts at Apply change. Apply asks each again;
  * a busy piste refuses before any bout moves and the draft stays ready, the others mark it
- * failed (open again when no action ran). The page shows the refusal once, as Apply answers it
+ * failed, closed for good (ruling 997). The page shows the refusal once, as Apply answers it
  * (`applyFailureMessage`); the draft's stored `error` is not shown, then or later.
  */
 import type { ReadableDraftAction } from '@myclash/types';

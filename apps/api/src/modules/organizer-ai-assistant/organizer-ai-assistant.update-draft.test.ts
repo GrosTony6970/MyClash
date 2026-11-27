@@ -48,7 +48,7 @@ function drafts(before: DraftState, then = before) {
 const refusal = (message: string) => ({ response: { code: 'draft_closed', message } });
 
 const PARTLY_APPLIED_REFUSAL = refusal(
-  'This draft was partly applied before it failed. It cannot be changed, applied again or rejected.',
+  'An Apply of this draft stopped before it finished. It cannot be changed, applied again or rejected.',
 );
 
 /** The clock, pinned so a write's timestamps can be asserted whole. */

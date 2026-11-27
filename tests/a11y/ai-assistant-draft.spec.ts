@@ -96,13 +96,15 @@ test('a link to no draft at this Event says so aloud, axe clean, with no id', as
   expect(await page.locator('body').innerText()).not.toMatch(UUID);
 });
 
-test('a partly applied draft says so, axe clean, with no Apply or Reject', async ({ page }) => {
+test('a draft whose Apply stopped says so, axe clean, with no Apply or Reject', async ({
+  page,
+}) => {
   await openDraftLink(page, {
     status: 200,
     json: { ...DRAFT, status: 'failed', applyStarted: true },
   });
 
-  await expect(page.getByText('Partly applied before it failed.')).toBeVisible();
+  await expect(page.getByText('Apply stopped before it finished.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Apply', exact: true })).toHaveCount(0);
   await expectNoCriticalAxeViolations(page);
 });
