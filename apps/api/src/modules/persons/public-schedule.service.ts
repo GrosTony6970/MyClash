@@ -39,6 +39,7 @@ import { eliminationEnd } from './elimination-end';
 import { resolveMatchLengths, type MatchLengthInput } from '../schedule/match-lengths';
 import { resolveNextBoutEnds, type BoutRef } from '../schedule/next-bout-end';
 import { plannedLengthOf } from '../schedule/planned-length';
+import { endWithBlock, resolvePoolBlocks } from '../schedule/pool-block-ends';
 
 export interface ScheduleMatch {
   id: string;
@@ -128,8 +129,9 @@ export interface RefereeSlot {
 }
 
 /**
- * One of the fighter's Pools, from its earliest placed Match to the planned end
- * of its last, whoever fights them. A fighter is busy for the whole of it, not
+ * One of the fighter's Pools, from its earliest placed Match to the later of the
+ * planned end of its last, whoever fights them, and the end of the Pool's
+ * programme bar (operator, 2026-11-27). A fighter is busy for the whole of it, not
  * only their own bouts (ADR-017's hull; operator, 2026-09-17). Null times where
  * nothing is placed or the span could not be worked out.
  */
@@ -283,10 +285,16 @@ export class PublicScheduleService {
     });
   }
 
+  /**
+   * Each Pool the fighter has a bout in, busy from its first bout to the later of its last
+   * bout's end and its programme bar's end — the same end the schedule header shows
+   * (operator, 2026-11-27; `pool-block-ends.ts`).
+   */
   private async poolSpansOf(eventId: string, matches: ScheduleMatch[]): Promise<PoolSpan[]> {
     // One entry per Pool, in the order its first bout comes: a Map keeps the first
     // insertion's place, and every bout of a Pool carries the same names.
     const pools = new Map<string, Omit<PoolSpan, 'startsAt' | 'endsAt'>>();
+    const tournamentOf = new Map<string, string>();
     for (const m of matches) {
       if (m.poolId) {
         pools.set(m.poolId, {
@@ -294,9 +302,19 @@ export class PublicScheduleService {
           poolName: m.poolName,
           tournamentName: m.tournamentName,
         });
+        if (m.tournamentId) tournamentOf.set(m.poolId, m.tournamentId);
       }
     }
-    return resolvePoolSpans(this.supabase.service, this.logger, eventId, [...pools.values()]);
+    const db = this.supabase.service;
+    const [spans, blocks] = await Promise.all([
+      resolvePoolSpans(db, this.logger, eventId, [...pools.values()]),
+      resolvePoolBlocks(db, this.logger, eventId, [...new Set(tournamentOf.values())]),
+    ]);
+    return spans.map((span) => {
+      const tournamentId = tournamentOf.get(span.poolId);
+      const own = tournamentId ? (blocks.get(tournamentId) ?? []) : [];
+      return { ...span, endsAt: endWithBlock(span, own) };
+    });
   }
 
   /**

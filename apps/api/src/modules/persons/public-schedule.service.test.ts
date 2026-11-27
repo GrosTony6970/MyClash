@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveDutyWindows, resolvePhaseSpans, resolvePoolSpans } from '../schedule/duty-windows';
 import { resolveMatchLengths } from '../schedule/match-lengths';
 import { resolveNextBoutEnds } from '../schedule/next-bout-end';
+import { resolvePoolBlocks } from '../schedule/pool-block-ends';
 import {
   buildService,
   fighterMatch,
@@ -23,7 +24,13 @@ vi.mock('../schedule/duty-windows', () => ({
 }));
 vi.mock('../schedule/match-lengths', () => ({ resolveMatchLengths: vi.fn() }));
 vi.mock('../schedule/next-bout-end', () => ({ resolveNextBoutEnds: vi.fn() }));
+// The read is mocked; `endWithBlock`, the pure stretch, stays real.
+vi.mock('../schedule/pool-block-ends', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  resolvePoolBlocks: vi.fn(),
+}));
 
+const poolBlocks = vi.mocked(resolvePoolBlocks);
 const dutyWindows = vi.mocked(resolveDutyWindows);
 const poolSpans = vi.mocked(resolvePoolSpans);
 const phaseSpans = vi.mocked(resolvePhaseSpans);
@@ -41,6 +48,7 @@ beforeEach(() => {
   nextBoutEnds.mockImplementation(
     async (_db, _logger, _eventId, bouts) => new Map(bouts.map((bout) => [bout.id, null])),
   );
+  poolBlocks.mockResolvedValue(new Map());
 });
 
 /**
@@ -71,6 +79,7 @@ afterEach(() => {
   phaseSpans.mockReset();
   matchLengths.mockReset();
   nextBoutEnds.mockReset();
+  poolBlocks.mockReset();
 });
 
 describe('PublicScheduleService.getSchedule — referee slot times', () => {
@@ -454,5 +463,44 @@ describe("PublicScheduleService.getSchedule — a fighter's Pools", () => {
     ]);
     // a1, b1, a2, swiss — the unpublished bout was dropped before any of this.
     expect(schedule.matches.map((m) => m.poolId)).toEqual(['pool-a', 'pool-b', 'pool-a', null]);
+  });
+
+  it("ends a Pool at its programme bar's end, not at its last bout (operator, 2026-11-27)", async () => {
+    // Laure's Pool 2 runs 09:00 to 11:33; the organiser's Pool bar runs 09:00 to 12:00. Her
+    // Workshop clash line read "(09:00–11:33)" under a schedule header that ended at 12:00.
+    windowsAre({});
+    poolSpans.mockImplementation(async (_db, _logger, _eventId, pools) =>
+      pools.map((pool) => ({
+        ...pool,
+        startsAt: '2027-05-22T07:00:00.000Z',
+        endsAt: '2027-05-22T09:33:00.000Z',
+      })),
+    );
+    poolBlocks.mockResolvedValue(
+      new Map([
+        [
+          't-1',
+          [
+            {
+              startMs: Date.parse('2027-05-22T07:00:00.000Z'),
+              endMs: Date.parse('2027-05-22T10:00:00.000Z'),
+            },
+          ],
+        ],
+      ]),
+    );
+    const { service } = buildService(rows([]), {
+      registrations: [{ id: 'reg-1', tournament_id: 't-1' }],
+      matches: [fighterMatch('p1', null, 'published', { id: 'pool-2', name: 'Pool 2' })],
+    });
+
+    const schedule = await service.getSchedule('e-1', 'p-1', null);
+
+    expect(poolBlocks).toHaveBeenCalledTimes(1);
+    expect(poolBlocks.mock.calls[0]?.[2]).toBe('e-1');
+    expect(poolBlocks.mock.calls[0]?.[3]).toEqual(['t-1']);
+    expect(schedule.poolSpans.map((s) => [s.poolId, s.startsAt, s.endsAt])).toEqual([
+      ['pool-2', '2027-05-22T07:00:00.000Z', '2027-05-22T10:00:00.000Z'],
+    ]);
   });
 });

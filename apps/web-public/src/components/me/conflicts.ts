@@ -10,7 +10,8 @@
 // A fighter is busy for a whole block, not only their own bouts: their Pool
 // (operator, 2026-09-17), their Swiss phase, and their elimination bracket until
 // they are out (operator, 2026-11-23). The block's span — its first placed bout
-// to the end of its last, whoever fights them; the API works it out — is a
+// to the end of its last, whoever fights them, and for a Pool no earlier than the
+// end of its programme bar (operator, 2026-11-27); the API works it out — is a
 // commitment too, and clashes like any other.
 //
 // A clash names the block, never the person: "Pool 1 · Longsword Open",

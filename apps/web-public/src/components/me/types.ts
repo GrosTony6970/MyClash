@@ -93,9 +93,9 @@ export interface WorkshopEnrollment {
   sessionCancelled?: boolean;
 }
 
-/** One of the fighter's Pools, from its earliest placed bout to the planned end of
- *  its last, whoever fights them — a fighter is busy for all of it. Null times
- *  where the API could not work them out. */
+/** One of the fighter's Pools, from its earliest placed bout to the later of the planned
+ *  end of its last, whoever fights them, and the end of the Pool's programme bar — a
+ *  fighter is busy for all of it. Null times where the API could not work them out. */
 export interface PoolSpan {
   poolId: string;
   poolName: string | null;
