@@ -1873,7 +1873,7 @@ bouts is where an official sees that entries still wait.
   its Tournament's as the tablet last read them, and the "not confirmed" notice
   says so. In both cases the buttons are put in force by the format's scoring
   unit (`buttonsInForce`, `@myclash/types`): a venues bout shows one `+1` per
-  side (and one `1-1` where the grammar has an afterblow), derived at read and
+  side (and one `1-1` where a stored afterblow button is shown), derived at read and
   never written over the stored buttons.
 - **The Next and Previous tiles** are the server's once it has answered for the
   bout on screen, and "no neighbour" is such an answer. Until then they come
