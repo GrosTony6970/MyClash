@@ -5,9 +5,11 @@ import { useRef, useState } from 'react';
 import { useToast, statusLabel } from '@myclash/ui';
 import { TOURNAMENT_SIDE_COLORS } from '@myclash/types';
 import { validateLogoFile } from '../../../../../../../../src/lib/validate-logo-file';
-import { DISPLAY_FORM } from '../../_shared/display-form';
+import { DISPLAY_FORM, protestLimitValid } from '../../_shared/display-form';
+import { ProtestLimitFields } from '../../_shared/ProtestLimitFields';
 import { RulesFormState } from '../../_shared/RulesFormState';
 import { useEffectiveRules } from '../../_shared/useEffectiveRules';
+import { usePenaltyEntries } from '../../_shared/usePenaltyEntries';
 import { RulesChangeElsewhere } from './RulesChangeElsewhere';
 import { DisplayPreview } from './DisplayPreview';
 import { apiRequest, failureMessage } from '@myclash/api-client';
@@ -42,6 +44,8 @@ export function Step3Display({
   const toast = useToast();
   const rules = useEffectiveRules(tournamentId, DISPLAY_FORM);
   const { form: data, setForm: setData, saving } = rules;
+  // The penalty a protest past the limit offers is one of the list Step 1 picked.
+  const { entries: penaltyEntries, read: penaltyListRead } = usePenaltyEntries(tournamentId);
   // Set by an upload or a removal; until then, the row's own.
   const [newLogo, setNewLogo] = useState<string | null | undefined>(undefined);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -69,6 +73,7 @@ export function Step3Display({
   );
   const logoUrl =
     newLogo === undefined ? ((rules.row?.['logo_url'] as string | null) ?? null) : newLogo;
+  const limitInvalid = !protestLimitValid(data.protestLimit);
 
   async function uploadLogo(file: File) {
     const check = validateLogoFile(file);
@@ -117,6 +122,8 @@ export function Step3Display({
   }
 
   async function saveAndAdvance() {
+    // A protest limit the API would refuse is never sent (`ProtestLimitFields` says why).
+    if (limitInvalid) return;
     // Recorded, not inferred: the step is sent with whatever changed, alone when nothing did.
     if ((await rules.save({ wizardStep: 3 })) !== 'saved') return;
     toast.success(t('organizer.tournaments.settings.saved'));
@@ -447,6 +454,14 @@ export function Step3Display({
               </button>
             </fieldset>
           )}
+
+          {/* The protest limit, as on the Display tab: the organiser sets it while creating. */}
+          <ProtestLimitFields
+            data={data}
+            setData={setData}
+            penaltyEntries={penaltyEntries}
+            penaltyListRead={penaltyListRead}
+          />
         </div>
         <DisplayPreview data={data} logoUrl={logoUrl} rulesetCode={rulesetCode} />
       </div>

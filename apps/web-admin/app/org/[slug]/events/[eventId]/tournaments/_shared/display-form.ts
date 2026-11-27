@@ -1,6 +1,6 @@
 /**
  * The Display form (the settings tab and wizard Step 3): side colours, scoring buttons, pinned
- * penalties and the protest limit (the wizard draws no protest field), read from the scoring config in force the API answers (`effectiveRules.scoring`),
+ * penalties (the tab only) and the protest limit (both, `ProtestLimitFields`), read from the scoring config in force the API answers (`effectiveRules.scoring`),
  * never from a default of its own (operator rulings 43, 46). It held a single `Point` and an
  * `Afterblow` button over the pad's +2/+1 and 2-1/1-1, and a Save wrote them.
  */

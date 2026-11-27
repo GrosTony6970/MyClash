@@ -10,6 +10,7 @@ import {
   TOURNAMENT_ROW,
   button,
 } from '../[tournamentId]/settings/page.fixtures';
+import { control } from '../[tournamentId]/settings/page.rules.fixtures';
 import { Step2MatchFormat } from './_wizard/Step2MatchFormat';
 import { Step3Display } from './_wizard/Step3Display';
 import { Step4Advanced } from './_wizard/Step4Advanced';
@@ -163,5 +164,44 @@ describe("the wizard's rules steps", () => {
     release();
     await page.settle();
     expect(numbers()).toContain({ 2: '7', 3: '3', 4: '4' }[step]);
+  });
+});
+
+/**
+ * The operator looked for the protest limit while creating a Tournament, and found it only in its
+ * settings afterwards. Step 3 now holds the same two fields as the Display tab.
+ */
+describe("the wizard's Display step: the protest limit", () => {
+  const NO_OFFER = 'The pad will count and warn, and offer no penalty.';
+  const set = (text: string, value: string) => act(async () => type(control(text), value));
+
+  it('sets a protest limit and the penalty it offers, and sends them with the step', async () => {
+    STEP.n = 3;
+    page = await openEventPage(<NewTournamentPage />, READS, { [SAVE]: {} });
+    expect(control('Protest limit').value).toBe('');
+
+    await set('Protest limit', '2');
+    expect(document.body.textContent).toContain(NO_OFFER);
+    // The penalty list's own entries, valued by their ref.
+    await set('Penalty offered past the limit', '1');
+    expect(document.body.textContent).not.toContain(NO_OFFER);
+
+    await tap('Next');
+    expect(stepSaves()).toEqual([
+      {
+        wizardStep: 3,
+        scoringConfig: { display: { protests: { limit: 2, offerPenaltyRef: '1' } } },
+      },
+    ]);
+  });
+
+  it.each(['2.5', '-1'])('a protest limit of %s blocks Next and says why', async (limit) => {
+    STEP.n = 3;
+    page = await openEventPage(<NewTournamentPage />, READS, { [SAVE]: {} });
+    await set('Protest limit', limit);
+    expect(document.body.textContent).toContain('A whole number, 0 or more.');
+
+    await tap('Next');
+    expect(stepSaves()).toEqual([]);
   });
 });
