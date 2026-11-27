@@ -922,6 +922,10 @@ state dots stay light-scope fills, 3.29:1 at the lowest, over the 3:1 a shape ne
 surfaces, under white, and the stage's warning; `TvProtestChip.render.test.tsx` and
 `wall-ink.test.tsx` hold the two stage elements.
 
+**A chip on a card that is itself a wash** stacks the two: the "Attending" chip on a my-schedule
+clash card (`bg-danger/10`) read 3.93:1 (2026-11-27). Such a chip puts its wash on an opaque
+`bg-background` base, so it composites over the page as measured here (`WorkshopRoleChip`).
+
 The dark scope did not move in this entry: its `danger` and `info` were under the bar on their own
 wash over a dark card, 4.27:1 and 4.42:1. They are D37.
 
