@@ -6,6 +6,7 @@ import {
   selectsFor,
   writesTo,
 } from '../../common/testing/supabase-chain';
+import { OrganizerAIAssistantService } from '../organizer-ai-assistant/organizer-ai-assistant.service';
 import { OrganizerChatService } from './organizer-chat.service';
 
 /**
@@ -74,5 +75,56 @@ describe('OrganizerChatService.createConversation', () => {
     expect(stored).toHaveLength(1);
     expect(stored[0]).toMatchObject({ event_id: EVENT, tournament_id: OWN_TOURNAMENT });
     expect(created.tournamentId).toBe(OWN_TOURNAMENT);
+  });
+});
+
+/**
+ * Ruling 994. The chat dismisses a proposal through the assistant's own `updateDraft`, so a
+ * proposal already applied stays applied: the dismissal refuses and the chat says nothing.
+ */
+describe('OrganizerChatService.rejectProposal', () => {
+  it('refuses to dismiss an applied proposal, and writes nothing', async () => {
+    const supabase = mockSupabase({
+      events: { rows: [{ id: EVENT, organization_id: 'org-1', name: 'Spring Open' }] },
+      organizer_chat_conversations: { rows: [{ id: 'chat-1', event_id: EVENT }] },
+      organizer_ai_assistant_drafts: {
+        rows: [
+          {
+            id: 'draft-1',
+            event_id: EVENT,
+            conversation_id: 'chat-1',
+            draft_type: 'pool_plan',
+            status: 'applied',
+            events: { organization_id: 'org-1' },
+          },
+        ],
+      },
+    });
+    const organizations = { assertOrgRole: vi.fn().mockResolvedValue(undefined) };
+    const none = {} as never;
+    const assistant = new OrganizerAIAssistantService(
+      supabase as never,
+      none,
+      organizations as never,
+      none,
+      none,
+      none,
+      none,
+    );
+    const service = new OrganizerChatService(
+      supabase as never,
+      none,
+      organizations as never,
+      assistant,
+      none,
+      none,
+    );
+
+    await expect(
+      service.rejectProposal(EVENT, 'chat-1', 'draft-1', 'user-1'),
+    ).rejects.toMatchObject({
+      response: { code: 'draft_closed', message: 'This draft is already applied.' },
+    });
+    expect(supabase.writes).toEqual([]);
   });
 });

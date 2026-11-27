@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { AIUsageService } from '../ai-usage/ai-usage.service';
 import { EventsService } from '../events/events.service';
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -17,6 +22,18 @@ import type {
 import { assertMatchesBelongToEvent, assertTournamentsBelongToEvent } from '../events/in-event';
 
 type DraftStatus = 'draft' | 'ready' | 'failed' | 'applied' | 'rejected';
+
+/**
+ * The statuses a draft may still change from. An applied draft's actions ran and a rejected
+ * one was refused: both are closed (ruling 994). Marie applies a draft that generates 4 Pools;
+ * an edit that made it `ready` again would let a second Apply generate them again.
+ */
+const OPEN_STATUSES: DraftStatus[] = ['draft', 'ready', 'failed'];
+
+/** The refusal of a change to a closed draft, with a code the page can read. */
+function draftClosed(message: string): ConflictException {
+  return new ConflictException({ code: 'draft_closed', message });
+}
 
 interface EventRow {
   id: string;
@@ -219,6 +236,9 @@ export class OrganizerAIAssistantService {
   ) {
     const draft = await this.getDraftRow(eventId, draftId);
     await this.assertDraftAccess(draft, actorUserId);
+    if (!OPEN_STATUSES.includes(draft.status)) {
+      throw draftClosed(`This draft is already ${draft.status}.`);
+    }
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (dto.summary !== undefined) updates['summary'] = dto.summary;
@@ -241,9 +261,13 @@ export class OrganizerAIAssistantService {
       .update(updates)
       .eq('id', draftId)
       .eq('event_id', eventId)
+      // The read above and this write are two requests: an Apply or a Reject in another tab
+      // may close the draft between them. The write then matches no row and refuses.
+      .in('status', OPEN_STATUSES)
       .select('*')
-      .single();
-    if (error || !data) throw new BadRequestException(error?.message ?? 'Failed to update draft');
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw draftClosed('This draft is already applied or rejected.');
 
     await this.audit(actorUserId, eventId, 'event.ai_assistant_draft_updated', draftId, {
       status: updates['status'] ?? draft.status,
