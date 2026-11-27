@@ -3,7 +3,12 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ApiFailure } from '@myclash/api-client';
 import { en, fr } from '@myclash/i18n';
-import { applyFailureMessage, discardFailureMessage, foughtBoutsAtStake } from './discard-refusal';
+import {
+  applyFailureMessage,
+  discardFailureMessage,
+  foughtBoutsAtStake,
+  rejectFailureMessage,
+} from './discard-refusal';
 
 const t = (key: string) => key;
 
@@ -74,6 +79,17 @@ describe('applyFailureMessage (ruling 284)', () => {
       'utf8',
     );
     expect(page).toContain("applyFailureMessage(r, t, t('organizer.aiAssistant.applyError'))");
+  });
+});
+
+describe('a closed draft (rulings 994, 997)', () => {
+  it('says so in words on Apply and on Reject, not in the API’s English', () => {
+    const closed = refused(409, 'draft_closed');
+    expect(applyFailureMessage(closed, t, 'fallback')).toBe('organizer.aiAssistant.draftClosed');
+    expect(rejectFailureMessage(closed, t, 'fallback')).toBe('organizer.aiAssistant.draftClosed');
+    expect(rejectFailureMessage(refused(409, 'CONFLICT'), t, 'fallback')).toBe(
+      'An English sentence from the API.',
+    );
   });
 });
 

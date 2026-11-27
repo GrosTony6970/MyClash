@@ -1,17 +1,13 @@
 'use client';
 
-import type { ReadableDraftAction } from '@myclash/types';
+import { DraftActionsView } from '@/components/ai/DraftActionsView';
+import { partlyApplied, type AssistantDraft } from '@/components/ai/assistant-draft';
 
-export interface ChatProposal {
-  id: string;
-  draftType: string;
-  status: 'draft' | 'ready' | 'failed' | 'applied' | 'rejected';
-  summary: string | null;
-  proposedActions: Array<Record<string, unknown>>;
-  /** The actions by name, as the assistant answers a draft (call U). */
-  readable: ReadableDraftAction[];
-  validationState: { ok?: boolean; warnings?: string[]; errors?: string[] };
-}
+/** A chat proposal is the assistant's draft answer (call U): the card reads these of it. */
+export type ChatProposal = Pick<
+  AssistantDraft,
+  'id' | 'draftType' | 'status' | 'summary' | 'readable' | 'validationState' | 'applyStarted'
+>;
 
 interface Props {
   proposal: ChatProposal;
@@ -22,9 +18,6 @@ interface Props {
 }
 
 export function ProposalCard({ proposal, busy, onConfirm, onReject, t }: Props) {
-  const action = proposal.proposedActions[0] ?? {};
-  const kind = typeof action['kind'] === 'string' ? (action['kind'] as string) : proposal.draftType;
-  const args = Object.entries(action).filter(([key]) => key !== 'kind');
   const errors = proposal.validationState.errors ?? [];
   const warnings = proposal.validationState.warnings ?? [];
   const resolved = proposal.status === 'applied' || proposal.status === 'rejected';
@@ -36,22 +29,15 @@ export function ProposalCard({ proposal, busy, onConfirm, onReject, t }: Props) 
           {t('organizer.chat.proposal.title')}
         </span>
         <span className="rounded-full bg-border px-2 py-0.5 text-[11px] font-semibold text-foreground-secondary">
-          {kind}
+          {t(`organizer.aiAssistant.types.${proposal.draftType}`)}
         </span>
       </div>
 
       {proposal.summary && <p className="mt-2 text-sm text-foreground">{proposal.summary}</p>}
 
-      {args.length > 0 && (
-        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-foreground-secondary">
-          {args.map(([key, value]) => (
-            <div key={key} className="contents">
-              <dt className="font-medium text-muted">{key}</dt>
-              <dd className="truncate text-foreground">{String(value)}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
+      <div className="mt-2">
+        <DraftActionsView actions={proposal.readable} />
+      </div>
 
       {errors.length > 0 && (
         <p className="mt-2 rounded border border-danger/30 bg-danger/10 px-2 py-1 text-xs text-danger">
@@ -75,7 +61,11 @@ export function ProposalCard({ proposal, busy, onConfirm, onReject, t }: Props) 
         </p>
       )}
       {proposal.status === 'failed' && (
-        <p className="mt-2 text-xs text-danger">{t('organizer.chat.proposal.failed')}</p>
+        <p className="mt-2 text-xs text-danger">
+          {partlyApplied(proposal)
+            ? t('organizer.aiAssistant.partlyApplied')
+            : t('organizer.chat.proposal.failed')}
+        </p>
       )}
 
       {!resolved && proposal.status === 'ready' && (

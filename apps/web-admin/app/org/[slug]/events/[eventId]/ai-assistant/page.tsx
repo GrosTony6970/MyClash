@@ -1,35 +1,21 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams, useSearchParams } from 'next/navigation';
+import { usePathname, useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { statusLabel } from '@myclash/ui';
-import { apiRequest, failureMessage } from '@myclash/api-client';
+import { apiRequest, failureMessage, type ApiResult } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useEventStatus } from '../_hooks/useEventStatus';
-import { applyFailureMessage } from '@/lib/discard-refusal';
+import { applyFailureMessage, rejectFailureMessage } from '@/lib/discard-refusal';
 import { BackLink } from '@/components/BackLink';
-
-type DraftType =
-  'tournament_config' | 'pool_plan' | 'bracket_plan' | 'schedule_grid' | 'referee_assignments';
+import type { AssistantDraft, DraftType } from '@/components/ai/assistant-draft';
+import { DraftPanel } from './DraftPanel';
 
 interface Tournament {
   id: string;
   name: string;
-}
-
-interface AssistantDraft {
-  id: string;
-  tournamentId: string | null;
-  draftType: DraftType;
-  prompt: string;
-  summary: string | null;
-  proposedActions: Array<Record<string, unknown>>;
-  validationState: { ok?: boolean; warnings?: string[]; errors?: string[] };
-  status: 'draft' | 'ready' | 'failed' | 'applied' | 'rejected';
-  error: string | null;
-  createdAt?: string;
 }
 
 const DRAFT_TYPES: DraftType[] = [
@@ -43,7 +29,11 @@ const DRAFT_TYPES: DraftType[] = [
 export default function EventAIAssistantPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const search = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const { slug, eventId } = params;
+  const openDraftId = search.get('draft');
+  const draftsPath = `/api/v1/events/${eventId}/ai-assistant/drafts`;
   const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const { isReadOnly } = useEventStatus(eventId);
@@ -60,7 +50,6 @@ export default function EventAIAssistantPage() {
   const [tournamentId, setTournamentId] = useState(search.get('tournamentId') ?? '');
   const [prompt, setPrompt] = useState('');
   const [selectedDraft, setSelectedDraft] = useState<AssistantDraft | null>(null);
-  const [actionsJson, setActionsJson] = useState('[]');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -116,9 +105,44 @@ export default function EventAIAssistantPage() {
     if (r.ok) setDrafts(r.data);
   }
 
+  /**
+   * One draft, by its id (call V): the list holds only the newest 50, and a link from Claude may
+   * name an older one. An id of no draft at this Event is a 404, a malformed one a 400; the API's
+   * sentence names the id, so `showDraft` says the page's own words.
+   */
+  function readDraft(id: string, signal?: AbortSignal) {
+    return apiRequest<AssistantDraft>(apiUrl, `${draftsPath}/${id}`, { signal });
+  }
+
+  function showDraft(r: ApiResult<AssistantDraft>) {
+    if (r.ok) {
+      setSelectedDraft(r.data);
+      return;
+    }
+    if (r.kind === 'http' && (r.status === 404 || r.status === 400)) {
+      setSelectedDraft(null);
+      setError(t('organizer.aiAssistant.draftNotFound'));
+      return;
+    }
+    const message = failureMessage(r, t, t('organizer.aiAssistant.openError'));
+    if (message) setError(message);
+  }
+
+  // The address names the open draft, so a reload or a link opens it. A newer choice aborts
+  // the read of the older one, which would otherwise land last and show the wrong draft.
+  useEffect(() => {
+    if (!openDraftId) return;
+    const controller = new AbortController();
+    void readDraft(openDraftId, controller.signal).then(showDraft);
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openDraftId]);
+
   function selectDraft(draft: AssistantDraft) {
     setSelectedDraft(draft);
-    setActionsJson(JSON.stringify(draft.proposedActions, null, 2));
+    const next = new URLSearchParams(search.toString());
+    next.set('draft', draft.id);
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   }
 
   async function createDraft() {
@@ -151,82 +175,45 @@ export default function EventAIAssistantPage() {
     }
   }
 
-  async function saveDraft() {
-    if (!selectedDraft) return;
-    setBusy(true);
-    setError(null);
-    // The `try` narrowed to the one thing that still throws: the operator edits
-    // the action list as raw JSON in a textarea, so `JSON.parse` is a real
-    // failure path and NOT an API one.
-    let actions: Array<Record<string, unknown>>;
-    try {
-      actions = JSON.parse(actionsJson) as Array<Record<string, unknown>>;
-    } catch {
-      setError(t('organizer.aiAssistant.saveError'));
-      setBusy(false);
+  async function applyDraft(id: string) {
+    const r = await apiRequest(apiUrl, `${draftsPath}/${id}/apply`, { method: 'POST' });
+    if (r.ok) {
+      setMessage(t('organizer.aiAssistant.applySuccess'));
       return;
     }
-    try {
-      const r = await apiRequest<AssistantDraft>(
-        apiUrl,
-        `/api/v1/events/${eventId}/ai-assistant/drafts/${selectedDraft.id}`,
-        { method: 'PATCH', body: { proposedActions: actions, status: 'ready' } },
-      );
-      if (!r.ok) {
-        const message = failureMessage(r, t, t('organizer.aiAssistant.saveError'));
-        if (message) setError(message);
-        return;
-      }
-      setSelectedDraft(r.data);
-      setMessage(t('organizer.aiAssistant.saveSuccess'));
-      await refreshDrafts();
-    } finally {
-      setBusy(false);
-    }
+    // Applying a draft writes real tournament configuration. When it is
+    // refused, which action collided is the only thing worth saying.
+    const message = applyFailureMessage(r, t, t('organizer.aiAssistant.applyError'));
+    if (message) setError(message);
   }
 
-  async function applyDraft() {
-    if (!selectedDraft) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const r = await apiRequest(
-        apiUrl,
-        `/api/v1/events/${eventId}/ai-assistant/drafts/${selectedDraft.id}/apply`,
-        { method: 'POST' },
-      );
-      if (!r.ok) {
-        // Applying a draft writes real tournament configuration. When it is
-        // refused, which action collided is the only thing worth saying.
-        const message = applyFailureMessage(r, t, t('organizer.aiAssistant.applyError'));
-        if (message) setError(message);
-        return;
-      }
-      setMessage(t('organizer.aiAssistant.applySuccess'));
-      await refreshDrafts();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function rejectDraft() {
-    if (!selectedDraft) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const r = await apiRequest(
-        apiUrl,
-        `/api/v1/events/${eventId}/ai-assistant/drafts/${selectedDraft.id}`,
-        { method: 'PATCH', body: { status: 'rejected' } },
-      );
-      if (!r.ok) {
-        const message = failureMessage(r, t, t('organizer.aiAssistant.rejectError'));
-        if (message) setError(message);
-        return;
-      }
+  async function rejectDraft(id: string) {
+    const r = await apiRequest(apiUrl, `${draftsPath}/${id}`, {
+      method: 'PATCH',
+      body: { status: 'rejected' },
+    });
+    if (r.ok) {
       setMessage(t('organizer.aiAssistant.rejectSuccess'));
-      setSelectedDraft(null);
-      await refreshDrafts();
+      return;
+    }
+    const message = rejectFailureMessage(r, t, t('organizer.aiAssistant.rejectError'));
+    if (message) setError(message);
+  }
+
+  /**
+   * Apply or Reject, then the open draft reads again: applied, rejected, partly applied, or
+   * closed by another tab, it shows its new state. The history's buttons wait while this runs,
+   * so the read lands on the draft it was asked for.
+   */
+  async function decide(decision: (id: string) => Promise<void>) {
+    if (!selectedDraft) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await decision(selectedDraft.id);
+      const [read] = await Promise.all([readDraft(selectedDraft.id), refreshDrafts()]);
+      showDraft(read);
     } finally {
       setBusy(false);
     }
@@ -336,73 +323,14 @@ export default function EventAIAssistantPage() {
           {error && <p className="text-sm text-danger">{error}</p>}
 
           {selectedDraft && (
-            <div className="mt-6 space-y-4 border-t border-border pt-5">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-                    {t('organizer.aiAssistant.preview')}
-                  </h2>
-                  <p className="text-sm text-foreground-secondary">{selectedDraft.summary}</p>
-                </div>
-                <span className="rounded-full bg-border px-3 py-1 text-xs font-semibold text-foreground-secondary">
-                  {statusLabel('aiDraft', selectedDraft.status, t)}
-                </span>
-              </div>
-
-              {selectedDraft.validationState.errors?.length ? (
-                <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
-                  {selectedDraft.validationState.errors.join(', ')}
-                </div>
-              ) : null}
-
-              {selectedDraft.validationState.warnings?.length ? (
-                <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
-                  {selectedDraft.validationState.warnings.join(', ')}
-                </div>
-              ) : null}
-
-              <label
-                className="block text-sm font-medium text-foreground-secondary"
-                htmlFor="ai-assistant-actions"
-              >
-                {t('organizer.aiAssistant.actions')}
-                <textarea
-                  id="ai-assistant-actions"
-                  aria-label={t('organizer.aiAssistant.actions')}
-                  value={actionsJson}
-                  onChange={(event) => setActionsJson(event.target.value)}
-                  rows={12}
-                  className="mt-1 w-full rounded-lg border border-border px-3 py-2 font-mono text-xs"
-                />
-              </label>
-
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => void saveDraft()}
-                  disabled={busy || isReadOnly}
-                  className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
-                >
-                  {t('actions.save')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void applyDraft()}
-                  disabled={busy || selectedDraft.status !== 'ready' || isReadOnly}
-                  className="rounded-lg bg-strong px-4 py-2 text-sm font-semibold text-strong-foreground hover:bg-strong-hover disabled:opacity-50"
-                >
-                  {t('actions.apply')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void rejectDraft()}
-                  disabled={busy || isReadOnly}
-                  className="rounded-lg px-4 py-2 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
-                >
-                  {t('actions.reject')}
-                </button>
-              </div>
-            </div>
+            <DraftPanel
+              draft={selectedDraft}
+              busy={busy}
+              isReadOnly={isReadOnly}
+              onApply={() => void decide(applyDraft)}
+              onReject={() => void decide(rejectDraft)}
+              t={t}
+            />
           )}
         </section>
 
@@ -419,7 +347,8 @@ export default function EventAIAssistantPage() {
                 key={draft.id}
                 type="button"
                 onClick={() => selectDraft(draft)}
-                className="w-full rounded-lg border border-border p-3 text-left hover:border-accent"
+                disabled={busy}
+                className="w-full rounded-lg border border-border p-3 text-left hover:border-accent disabled:opacity-50"
               >
                 <span className="block text-sm font-semibold text-foreground">
                   {t(`organizer.aiAssistant.types.${draft.draftType}`)}

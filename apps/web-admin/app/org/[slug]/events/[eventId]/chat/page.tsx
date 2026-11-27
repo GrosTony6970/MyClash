@@ -10,6 +10,7 @@ import { ProposalCard, type ChatProposal } from './ProposalCard';
 import { apiRequest, failureMessage, responseFailure } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
+import { applyFailureMessage, rejectFailureMessage } from '@/lib/discard-refusal';
 import { useEventStatus } from '../_hooks/useEventStatus';
 
 function PencilIcon() {
@@ -274,8 +275,9 @@ export default function EventChatPage() {
       if (!r.ok) {
         // A refused proposal names what it collided with — a match already
         // scored, a lice already booked. That sentence used to be replaced by
-        // "Could not send the message."
-        const message = failureMessage(r, t, t('organizer.chat.errorSend'));
+        // "Could not send the message." A closed draft is said in words.
+        const refusal = decision === 'confirm' ? applyFailureMessage : rejectFailureMessage;
+        const message = refusal(r, t, t('organizer.chat.errorSend'));
         if (message) setError(message);
         return;
       }

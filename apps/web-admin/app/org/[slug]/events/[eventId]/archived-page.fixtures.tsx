@@ -17,7 +17,7 @@ import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { vi } from 'vitest';
 import { ToastProvider } from '@myclash/ui';
-import { apiRequest } from '@myclash/api-client';
+import { apiRequest, type ApiResult } from '@myclash/api-client';
 import { OrganizerEventContextProvider } from '@/components/organizer-event-context';
 import { I18nProvider } from '@/i18n/I18nProvider';
 
@@ -73,6 +73,22 @@ const EDGE_REFUSED = Symbol('a read an edge proxy refuses');
 export const EDGE_REFUSED_READ = { [EDGE_REFUSED]: true } as const;
 const isEdgeRefusedRead = (answer: unknown) =>
   typeof answer === 'object' && answer !== null && EDGE_REFUSED in answer;
+const REFUSED = Symbol('a request the server refuses with a given failure');
+/** What `apiRequest` answers a refused request. */
+type Refusal = Extract<ApiResult<unknown>, { ok: false }>;
+/**
+ * A read or a save the server refuses with `failure` (a 404 whose sentence names the id, a 409
+ * with its code): give it as the answer of a path in `reads`, or of a save in `taken`. Through
+ * `apiRequest` only.
+ */
+export const refused = (failure: Refusal) => ({ [REFUSED]: failure });
+const refusalOf = (answer: unknown): Refusal | null =>
+  typeof answer === 'object' && answer !== null && REFUSED in answer
+    ? (answer as { [REFUSED]: Refusal })[REFUSED]
+    : null;
+/** A read's answer, asked again on each request when it is a function: a draft after its Apply. */
+const answerOf = (answer: unknown): unknown =>
+  typeof answer === 'function' ? (answer as () => unknown)() : answer;
 const SERVER_FAULT = {
   ok: false as const,
   kind: 'http' as const,
@@ -228,12 +244,16 @@ function standInServer(
     if (init?.method && init.method !== 'GET') {
       const save = `${init.method} ${path}`;
       sent.push(save);
-      return save in taken ? { ok: true, data: taken[save] } : REFUSAL;
+      if (!(save in taken)) return REFUSAL;
+      return refusalOf(taken[save]) ?? { ok: true, data: taken[save] };
     }
     if (path in answers) {
-      if (isForbiddenRead(answers[path])) return { ...REFUSAL, detail: 'Forbidden', code: null };
-      if (isEdgeRefusedRead(answers[path])) return { ...REFUSAL, detail: null, code: null };
-      return isFailedRead(answers[path]) ? SERVER_FAULT : { ok: true, data: answers[path] };
+      const answer = answerOf(answers[path]);
+      const refusal = refusalOf(answer);
+      if (refusal) return refusal;
+      if (isForbiddenRead(answer)) return { ...REFUSAL, detail: 'Forbidden', code: null };
+      if (isEdgeRefusedRead(answer)) return { ...REFUSAL, detail: null, code: null };
+      return isFailedRead(answer) ? SERVER_FAULT : { ok: true, data: answer };
     }
     throw new Error(`unexpected request ${path}`);
   });

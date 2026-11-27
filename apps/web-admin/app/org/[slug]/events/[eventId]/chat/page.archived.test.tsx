@@ -1,13 +1,20 @@
 import { act, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as ApiClient from '@myclash/api-client';
-import { openArchivedPage, openEventPage, type, type OpenedPage } from '../archived-page.fixtures';
+import {
+  openArchivedPage,
+  openEventPage,
+  refused,
+  type,
+  type OpenedPage,
+} from '../archived-page.fixtures';
 import EventChatPage from './page';
 
 /**
  * The AI chat of an Event (rulings 377, 378). On an archived Event nothing is
  * sent, renamed, deleted, confirmed or rejected: the server refuses all of it.
- * And a send the server refuses says the server's reason, not one fixed sentence.
+ * And a send the server refuses says the server's reason, not one fixed sentence; a proposal
+ * already closed says so in words.
  */
 vi.mock('next/navigation', () => ({
   useParams: () => ({ slug: 'org', eventId: 'ev1' }),
@@ -43,7 +50,9 @@ const CONVERSATION = {
         status: 'ready',
         summary: 'Two pools',
         proposedActions: [{ kind: 'set_pools', count: 2 }],
+        readable: [{ kind: 'unsupported' }],
         validationState: { ok: true },
+        applyStarted: false,
       },
     },
   ],
@@ -109,5 +118,39 @@ describe('a send the server refuses', () => {
     ]);
     expect(document.body.textContent).toContain('This event is archived');
     expect(document.body.textContent).not.toContain('Could not send');
+  });
+});
+
+describe('a proposal closed in another tab (ruling 994)', () => {
+  it.each([
+    ['Confirm & apply', 'confirm'],
+    ['Dismiss', 'reject'],
+  ])('%s says so in words, not in the API’s English', async (name, decision) => {
+    const closed = {
+      ok: false as const,
+      kind: 'http' as const,
+      status: 409,
+      detail: 'This draft is already applied.',
+      validationErrors: null,
+      code: 'draft_closed',
+      details: null,
+    };
+    page = await openEventPage(
+      <EventChatPage />,
+      { '/api/v1/events/ev1': { id: 'ev1', name: 'Open 2026', status: 'running' }, ...READS },
+      {
+        [`POST /api/v1/events/ev1/chat/conversations/c-1/proposals/d-1/${decision}`]:
+          refused(closed),
+      },
+    );
+    const button = [...document.body.querySelectorAll('button')].find(
+      (b) => b.textContent === name,
+    );
+
+    await act(async () => button!.click());
+    await page.settle();
+
+    expect(document.body.textContent).toContain('This draft is already applied, partly applied');
+    expect(document.body.textContent).not.toContain('This draft is already applied.');
   });
 });

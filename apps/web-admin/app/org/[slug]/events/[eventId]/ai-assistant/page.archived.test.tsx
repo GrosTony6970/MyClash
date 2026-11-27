@@ -6,7 +6,7 @@ import EventAIAssistantPage from './page';
 
 /**
  * The AI assistant of an archived Event (ruling 377): a draft is not made,
- * saved, applied or rejected there. The server refuses all four.
+ * applied or rejected there. The server refuses all three.
  */
 vi.mock('next/navigation', () => ({
   useParams: () => ({ slug: 'org', eventId: 'ev1' }),
@@ -32,8 +32,10 @@ const READY_DRAFT = {
   prompt: 'Two pools of six',
   summary: 'Two pools',
   proposedActions: [{ kind: 'set_pools', count: 2 }],
+  readable: [{ kind: 'unsupported' }],
   validationState: { ok: true },
   status: 'ready',
+  applyStarted: false,
   error: null,
 };
 
@@ -63,7 +65,7 @@ describe('the AI assistant of an archived Event', () => {
     expect(chip?.textContent).toBe('Ready');
   });
 
-  it('makes, saves, applies and rejects no draft', async () => {
+  it('makes, applies and rejects no draft', async () => {
     page = await openArchivedPage(<EventAIAssistantPage />, READS);
 
     await page.pressEverything();

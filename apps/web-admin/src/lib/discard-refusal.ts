@@ -33,6 +33,21 @@ export function applyFailureMessage(
   if (failureCode(failure) === 'scored_bouts_would_be_discarded') {
     return t('organizer.aiAssistant.applyFoughtBouts');
   }
+  return rejectFailureMessage(failure, t, fallback);
+}
+
+/**
+ * What the assistant says when a draft is not rejected, and the last word of an Apply too. A
+ * draft already applied, partly applied or rejected is closed (rulings 994, 997): another tab
+ * closed it, or a second Apply came after the first. The API refuses with the code
+ * `draft_closed`; its own sentence is English.
+ */
+export function rejectFailureMessage(
+  failure: ApiFailure,
+  t: (key: string) => string,
+  fallback: string,
+): string | null {
+  if (failureCode(failure) === 'draft_closed') return t('organizer.aiAssistant.draftClosed');
   return failureMessage(failure, t, fallback);
 }
 
