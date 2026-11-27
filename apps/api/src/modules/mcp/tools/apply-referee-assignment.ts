@@ -25,6 +25,7 @@ import { ConflictException, Logger } from '@nestjs/common';
 import type { RefereeReason } from '@myclash/rulesets/scheduling/referee-checker';
 import { insertAuditLog } from '../../../common/audit-log';
 import type { McpCaller, McpToolDeps } from '../mcp-server';
+import { appName } from './connector-app-name';
 import { isRefusal, type McpRefusal } from './mcp-answer';
 import { runOnePerEvent } from './one-write-per-event';
 import {
@@ -150,30 +151,6 @@ async function recheck(
   const next = holderOf(after, match.seat, skill.id);
   if ((next?.personId ?? null) !== token.next) return changed(match);
   return { from: holder?.name ?? null, to: next?.name ?? null, person };
-}
-
-/**
- * The connector app's name for the audit row (call L, ruling 990). It is the name the app gave
- * itself when it registered with the auth server: what it calls itself, not a name we checked.
- * A failed read leaves it null and the write goes on: the person is the actor either way.
- */
-async function appName(deps: McpToolDeps, clientId: string): Promise<string | null> {
-  try {
-    const { data, error } = await deps.supabase.service.auth.admin.oauth.getClient(clientId);
-    if (error) {
-      logger.warn(`connector app name read failed: ${error.status ?? '-'} ${error.code ?? '-'}`);
-      return null;
-    }
-    if (typeof data?.client_name !== 'string' || data.client_name === '') {
-      logger.warn('connector app name read answered no client_name');
-      return null;
-    }
-    return data.client_name;
-  } catch (thrown) {
-    const message = thrown instanceof Error ? thrown.message : String(thrown);
-    logger.warn(`connector app name read threw: ${message}`);
-    return null;
-  }
 }
 
 /**
