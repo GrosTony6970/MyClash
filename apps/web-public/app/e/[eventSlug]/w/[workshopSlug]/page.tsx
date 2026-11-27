@@ -278,7 +278,7 @@ export default function WorkshopDetailPage() {
                       session={session}
                       timezone={tz}
                       bcp47={bcp47}
-                      enrolled={null}
+                      seats={null}
                       cancelled
                     />
                     <CancelledBadge t={t} />
@@ -299,14 +299,7 @@ export default function WorkshopDetailPage() {
                       session={session}
                       timezone={tz}
                       bcp47={bcp47}
-                      enrolled={
-                        cap > 0
-                          ? t('publicApp.workshopDetail.enrolledCount', {
-                              confirmed: session.confirmedCount,
-                              capacity: cap,
-                            })
-                          : null
-                      }
+                      seats={cap > 0 ? { confirmed: session.confirmedCount, capacity: cap } : null}
                     />
 
                     <WorkshopRegisterControls
