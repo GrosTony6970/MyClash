@@ -29,7 +29,12 @@ import { readEventPerson } from '../../common/auth/event-person-gate';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrivacyService } from './privacy.service';
-import { readPersonWorkshops, type WorkshopEnrollment } from './person-workshops';
+import {
+  readPersonTeaching,
+  readPersonWorkshops,
+  type WorkshopEnrollment,
+  type WorkshopTeachingSession,
+} from './person-workshops';
 import { computeMatchKind, fetchBracketRounds, fetchSwissRounds } from './match-kind.util';
 import { sideColorsFromScoringConfig, type SideColors } from '../events/side-colors';
 import { deriveMatchOutcome } from '../fighters/recent-matches';
@@ -173,6 +178,9 @@ export interface PersonSchedule {
   phaseSpans: PhaseSpan[];
   refereeSlots: RefereeSlot[];
   workshops: WorkshopEnrollment[] | null; // null = hidden by privacy
+  /** The sessions the person teaches. Null = hidden by the same privacy choice as `workshops`
+   *  (ruling 132 hides a person's Workshops whether they attend or teach them). */
+  teaching: WorkshopTeachingSession[] | null;
   /** Sessions whose instructor refused the person: their own read only (ruling 236). */
   refusedWorkshopIds: string[];
 }
@@ -227,20 +235,45 @@ export class PublicScheduleService {
     personId: string,
     requesterPersonId: string | null,
   ): Promise<PersonSchedule> {
+    // Duties and taught sessions both key on the global person: read it once, for both.
+    const globalPersonId = this.fetchGlobalPersonId(personId);
     const [fights, refereeSlots, showWorkshops, timezone] = await Promise.all([
       this.fetchFights(eventId, personId),
-      this.fetchRefereeSlots(eventId, personId),
+      globalPersonId.then((id) => (id ? this.fetchRefereeSlots(eventId, id) : [])),
       this.privacy.canSeeWorkshops(personId, requesterPersonId),
       this.fetchTimezone(eventId),
     ]);
 
+    if (!showWorkshops) {
+      const hidden = { workshops: null, teaching: null, refusedWorkshopIds: [] };
+      return { personId, timezone, ...fights, refereeSlots, ...hidden };
+    }
     // A waitlist place and a refusal are the person's own business (rulings 235, 236).
     const own = requesterPersonId === personId;
-    const booked = showWorkshops
-      ? await readPersonWorkshops(this.supabase.service, personId, own)
-      : { workshops: null, refusedWorkshopIds: [] };
+    const db = this.supabase.service;
+    const [booked, teaching] = await Promise.all([
+      readPersonWorkshops(db, personId, own, (ids) =>
+        this.privacy.hiddenWorkshopGlobalPersonIds(ids),
+      ),
+      // A person linked to no global person (a guest's roster row) teaches nothing.
+      globalPersonId.then((id) => (id ? readPersonTeaching(db, eventId, id, own) : [])),
+    ]);
+    return { personId, timezone, ...fights, refereeSlots, ...booked, teaching };
+  }
 
-    return { personId, timezone, ...fights, refereeSlots, ...booked };
+  /**
+   * `referee_assignments` and `workshop_instructors` key on `global_persons.id`; the routes take
+   * the event-scoped `persons.id`. An unlinked person (null) holds neither. A failed read throws:
+   * a null would read as "no duty, no class", and her schedule would clash with nothing.
+   */
+  private async fetchGlobalPersonId(personId: string): Promise<string | null> {
+    const { data, error } = await this.supabase.service
+      .from('persons')
+      .select('global_person_id')
+      .eq('id', personId)
+      .maybeSingle();
+    if (error) throw new Error(`The person ${personId} could not be read: ${error.message}`);
+    return (data as { global_person_id: string | null } | null)?.global_person_id ?? null;
   }
 
   /**
@@ -516,19 +549,8 @@ export class PublicScheduleService {
     return map;
   }
 
-  private async fetchRefereeSlots(eventId: string, personId: string): Promise<RefereeSlot[]> {
-    // Post-0063: referee_assignments keys on global_persons.id, but this
-    // controller takes the event-scoped persons.id. Resolve via
-    // persons.global_person_id; absent link → no referee slots.
-    const { data: personLink } = await this.supabase.service
-      .from('persons')
-      .select('global_person_id')
-      .eq('id', personId)
-      .maybeSingle();
-    const globalPersonId =
-      (personLink as { global_person_id: string | null } | null)?.global_person_id ?? null;
-    if (!globalPersonId) return [];
-
+  /** Post-0063: referee_assignments keys on global_persons.id (`fetchGlobalPersonId`). */
+  private async fetchRefereeSlots(eventId: string, globalPersonId: string): Promise<RefereeSlot[]> {
     // Embed the match (match-scoped rows) AND the assignment's own pool/lice
     // (pool-/lice-scoped rows that carry no match — e.g. a pool "Déclarant").
     const { data, error } = await this.supabase.service

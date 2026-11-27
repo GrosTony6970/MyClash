@@ -2112,7 +2112,13 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
 - A person's schedule reads a booking by what it IS (`apps/api/src/modules/persons/person-workshops.ts`):
   anybody the person's privacy lets in reads the seats; the person alone reads their waitlist places,
   marked, and the sessions whose instructor refused them (rulings 235, 236). A refusal is a removal,
-  not a ban (ruling 219): the person's "Register again" removes it, then books.
+  not a ban (ruling 219): the person's "Register again" removes it, then books. Each seat names its
+  instructors, less those who hide their Workshops (ruling 132). The sessions the person TEACHES
+  come apart, as `teaching` (`readPersonTeaching`, keyed on the global person), behind the same
+  privacy switch — an instructor line is no seat; a draft Workshop shows on the instructor's own
+  read only. The schedules show both, each card marked
+  "Instructor" or "Attending" (`WorkshopRoleChip`); a session taught and booked shows once, as
+  taught (`scheduleWorkshops`), and a taught session takes part in the clash check.
 - Two pages book: the personal Workshops page (an account) and the public Workshop page
   `/e/[eventSlug]/w/[workshopSlug]` (an account or a guest session, ruling 261). Both read the
   caller's bookings from `GET /events/:event/my-schedule` and draw them with one set of controls

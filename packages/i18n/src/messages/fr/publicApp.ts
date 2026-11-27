@@ -527,6 +527,8 @@ export const publicApp = {
       emptyAll: 'Rien de prévu pour le moment.',
       matchCount: '{count} assauts',
       matchCountOne: '{count} assaut',
+      until: "jusqu'à {time}",
+      withInstructors: 'avec {names}',
       clashCheckIncomplete:
         "Nous n'avons pas pu déterminer l'heure de fin de {count} de vos engagements : leurs conflits éventuels ne sont donc pas vérifiés.",
       clashCheckIncompleteOne:

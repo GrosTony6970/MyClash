@@ -531,6 +531,10 @@ export const publicApp = {
       emptyAll: 'Nothing scheduled yet.',
       matchCount: '{count} matches',
       matchCountOne: '{count} match',
+      /** A Workshop card's end: "until 18:00". */
+      until: 'until {time}',
+      /** An attended Workshop's instructors: "with Jean Dupont and Ana Ruiz". */
+      withInstructors: 'with {names}',
       clashCheckIncomplete:
         "We couldn't work out when {count} of your commitments end, so they aren't checked for clashes.",
       clashCheckIncompleteOne:

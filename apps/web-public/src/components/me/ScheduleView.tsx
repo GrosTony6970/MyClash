@@ -27,25 +27,23 @@ import {
   fightGroup,
   fightHeaderEnd,
   partitionAtBars,
+  scheduleWorkshops,
   type RefereeAggregate,
+  type ScheduleWorkshop,
 } from './schedule-model';
 import { classifyTime, type TemporalState } from './schedule-time';
-import type {
-  PersonSchedule,
-  ProgrammeContextRow,
-  ScheduleMatch,
-  WorkshopEnrollment,
-} from './types';
+import type { PersonSchedule, ProgrammeContextRow, ScheduleMatch } from './types';
+import { WorkshopRoleChip } from './WorkshopRoleChip';
 
 const DEFAULT_TZ = 'Europe/Paris';
 
 type DisplayItem =
   | { kind: 'fight'; key: string; time: string | null; data: ScheduleMatch }
   | { kind: 'referee'; key: string; time: string | null; data: RefereeAggregate }
-  | { kind: 'workshop'; key: string; time: string | null; data: WorkshopEnrollment };
+  | { kind: 'workshop'; key: string; time: string | null; data: ScheduleWorkshop };
 
 /** A sub-group of same-tournament fights / same-tournament referee assignments /
- *  enrolled workshops, rendered under one collapsible title + a connecting thread. */
+ *  workshops taught or attended, rendered under one collapsible title + a connecting thread. */
 interface Group {
   key: string;
   kind: 'fight' | 'referee' | 'workshop';
@@ -125,6 +123,8 @@ export function ScheduleView({
 
   // Fold the many per-match referee slots into one card per pool / bracket tier.
   const referees = aggregateReferee(schedule.refereeSlots);
+  // The sessions taught, then the ones booked; one taught and booked shows once, as taught.
+  const workshops = scheduleWorkshops(schedule);
 
   const refereePhaseLabel = (r: RefereeAggregate): string | null => {
     const kind = matchKindLabel(t, r.matchKind, r.roundOfCount, r.swissRound);
@@ -150,8 +150,8 @@ export function ScheduleView({
         ? [{ key: r.key, label: refereeTitle(r), startMs: r.startMs, endMs: r.endMs }]
         : [],
     ),
-    ...(schedule.workshops ?? []).flatMap((w) => {
-      const ti = workshopTimed(`ws-${w.workshopId}`, w.workshopName, w);
+    ...workshops.flatMap((w) => {
+      const ti = workshopTimed(w.key, w.workshopName, w);
       return ti ? [ti] : [];
     }),
   ];
@@ -170,9 +170,9 @@ export function ScheduleView({
       time: r.startIso,
       data: r,
     })),
-    ...(schedule.workshops ?? []).map((w): DisplayItem => ({
+    ...workshops.map((w): DisplayItem => ({
       kind: 'workshop',
-      key: `ws-${w.workshopId}`,
+      key: w.key,
       time: w.sessionStart,
       data: w,
     })),
@@ -437,18 +437,28 @@ export function ScheduleView({
       );
     }
     const w = item.data;
+    // "until 18:00 · with Jean Dupont": the session's own end, and who teaches what she attends.
+    const meta = [
+      w.sessionEnd ? t('publicApp.me.schedule.until', { time: fmtTime(w.sessionEnd) }) : null,
+      w.instructorNames.length > 0
+        ? t('publicApp.me.schedule.withInstructors', {
+            names: new Intl.ListFormat(tag, { type: 'conjunction' }).format(w.instructorNames),
+          })
+        : null,
+    ].filter(Boolean);
     return (
       <CommitmentCard
         kind="workshop"
         timeLabel={fmtTime(w.sessionStart)}
         place={w.location}
         title={w.workshopName}
-        meta={null}
-        struck={w.sessionCancelled === true}
+        meta={meta.length > 0 ? meta.join(' · ') : null}
+        struck={w.sessionCancelled}
+        roleChip={<WorkshopRoleChip role={w.role} />}
         status={
           w.sessionCancelled
             ? { label: statusLabel('workshopSession', 'cancelled', t), tone: 'lost' }
-            : w.status === 'waitlisted'
+            : w.waitlisted
               ? { label: t('publicApp.me.workshops.onWaitlist'), tone: 'pending' }
               : undefined
         }
@@ -458,9 +468,14 @@ export function ScheduleView({
         isLive={liveKeys.has(item.key)}
         liveLabel={t('publicApp.me.schedule.live')}
         href={
-          eventSlug && w.workshopSlug
-            ? `/me/events/${eventSlug}/workshops#workshop-${w.workshopSlug}`
-            : undefined
+          // A session she teaches opens her instructor page, as the event overview's row does.
+          w.role === 'teaching'
+            ? eventSlug
+              ? '/me/instructor'
+              : undefined
+            : eventSlug && w.workshopSlug
+              ? `/me/events/${eventSlug}/workshops#workshop-${w.workshopSlug}`
+              : undefined
         }
       />
     );

@@ -17,6 +17,7 @@ import { useMySchedule } from '@/components/me/use-my-schedule';
 import { ReadFailed } from '@/components/me/ReadFailed';
 import { matchKindHash, matchKindLabel } from '@/components/me/match-kind';
 import { buildWorkshopRows } from '@/components/me/workshop-rows';
+import { WorkshopRoleChip } from '@/components/me/WorkshopRoleChip';
 import { CANCELLED_TEXT, CancelledBadge } from '@/components/workshops/session-cancelled';
 import {
   buildCompetingRows,
@@ -267,18 +268,12 @@ function OverviewContent({ myEvent }: { myEvent: MyEvent }) {
                   </div>
                   {w.cancelled ? (
                     <CancelledBadge t={t} />
-                  ) : w.involvement === 'teaching' ? (
-                    <span className="shrink-0 rounded-full bg-instructor/15 px-2 py-0.5 text-[11px] font-bold text-instructor">
-                      {t('publicApp.me.events.roleInstructor')}
-                    </span>
                   ) : w.involvement === 'waitlisted' ? (
                     <span className="shrink-0 rounded-full bg-warning/15 px-2 py-0.5 text-[11px] font-bold text-warning">
                       {t('publicApp.me.workshops.onWaitlist')}
                     </span>
                   ) : (
-                    <span className="shrink-0 rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-bold text-success">
-                      {t('publicApp.me.events.roleParticipant')}
-                    </span>
+                    <WorkshopRoleChip role={w.involvement} />
                   )}
                 </div>
               </Link>

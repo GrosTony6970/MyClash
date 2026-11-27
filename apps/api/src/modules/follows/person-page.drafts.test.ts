@@ -66,6 +66,7 @@ const SEED: Record<string, TableSeed> = {
   matches: { rows: [] },
   referee_assignments: { rows: [] },
   workshop_enrollments: { rows: [] },
+  workshop_instructors: { rows: [] },
   organization_members: {
     rows: [{ organization_id: 'org-a', user_id: 'u-member', role: 'read_only' }],
   },

@@ -4,7 +4,63 @@
 // programme-break boundaries — are unit-testable in isolation.
 
 import { fightWindow, phaseWord } from './conflicts';
-import type { RefereeSlot, ScheduleMatch } from './types';
+import type { PersonSchedule, RefereeSlot, ScheduleMatch } from './types';
+
+/** A Workshop session on the schedule, and whether the person teaches it or attends it. */
+export interface ScheduleWorkshop {
+  key: string;
+  role: 'teaching' | 'attending';
+  workshopSlug: string | null;
+  workshopName: string;
+  sessionStart: string | null;
+  sessionEnd: string | null;
+  location: string | null;
+  sessionCancelled: boolean;
+  /** A place on the waitlist, not a seat (ruling 235). Never for a session taught. */
+  waitlisted: boolean;
+  /** Who teaches an attended session; empty for one the person teaches. */
+  instructorNames: string[];
+}
+
+/**
+ * The sessions the person teaches, then the ones they booked. A session both taught and booked
+ * shows once, as taught — matched by session id, so a Workshop run twice keeps its other run.
+ * The key is the session's (`ws-<id>`) either way.
+ */
+export function scheduleWorkshops(
+  schedule: Pick<PersonSchedule, 'workshops' | 'teaching'>,
+): ScheduleWorkshop[] {
+  const teaching = schedule.teaching ?? [];
+  const taught = new Set(teaching.map((s) => s.sessionId));
+  return [
+    ...teaching.map((s): ScheduleWorkshop => ({
+      key: `ws-${s.sessionId}`,
+      role: 'teaching',
+      workshopSlug: s.workshopSlug,
+      workshopName: s.workshopName,
+      sessionStart: s.sessionStart,
+      sessionEnd: s.sessionEnd,
+      location: s.location,
+      sessionCancelled: s.sessionCancelled,
+      waitlisted: false,
+      instructorNames: [],
+    })),
+    ...(schedule.workshops ?? [])
+      .filter((w) => !taught.has(w.workshopId))
+      .map((w): ScheduleWorkshop => ({
+        key: `ws-${w.workshopId}`,
+        role: 'attending',
+        workshopSlug: w.workshopSlug,
+        workshopName: w.workshopName,
+        sessionStart: w.sessionStart,
+        sessionEnd: w.sessionEnd,
+        location: w.location,
+        sessionCancelled: w.sessionCancelled === true,
+        waitlisted: w.status === 'waitlisted',
+        instructorNames: w.instructorNames ?? [],
+      })),
+  ];
+}
 
 /**
  * The schedule group a fighter's bout falls in, and its title: one per Tournament AND phase,

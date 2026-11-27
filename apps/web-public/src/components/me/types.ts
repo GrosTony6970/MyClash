@@ -91,6 +91,20 @@ export interface WorkshopEnrollment {
   /** The session was cancelled: struck through, no clash, holds nothing (rulings 526, 529).
    *  Absent in a copy cached before the API sent it: read as not cancelled. */
   sessionCancelled?: boolean;
+  /** Who teaches it, less any instructor who hides their Workshops (ruling 132). Absent in a
+   *  copy cached before the API sent it: no names. */
+  instructorNames?: string[];
+}
+
+/** A session the person teaches. `sessionId` is the id space of `WorkshopEnrollment.workshopId`. */
+export interface WorkshopTeachingSession {
+  sessionId: string;
+  workshopSlug: string | null;
+  workshopName: string;
+  sessionStart: string | null;
+  sessionEnd: string | null;
+  location: string | null;
+  sessionCancelled: boolean;
 }
 
 /** One of the fighter's Pools, from its earliest placed bout to the later of the planned
@@ -131,6 +145,9 @@ export interface PersonSchedule {
   phaseSpans?: PhaseSpan[];
   refereeSlots: RefereeSlot[];
   workshops: WorkshopEnrollment[] | null;
+  /** The sessions the person teaches; null = hidden with `workshops` (ruling 132). Absent in a
+   *  copy cached before the API sent it. */
+  teaching?: WorkshopTeachingSession[] | null;
   /** Sessions whose instructor refused the viewer (their own schedule only). Absent in a
    *  copy cached before the API sent it. */
   refusedWorkshopIds?: string[];

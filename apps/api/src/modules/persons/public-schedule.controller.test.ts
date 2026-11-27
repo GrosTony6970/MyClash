@@ -128,6 +128,7 @@ function door(
   const privacy = {
     canSeeWorkshops: async (person: string, viewer: string | null) =>
       opts.hidesWorkshops === false || person === viewer,
+    hiddenWorkshopGlobalPersonIds: async () => new Set<string>(),
   };
   const service = new PublicScheduleService(supabase as never, privacy as never, orgs as never);
   const guestJwt = new GuestJwtService({ getOrThrow: () => GUEST_SECRET } as never);

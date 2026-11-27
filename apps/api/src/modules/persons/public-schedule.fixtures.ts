@@ -65,9 +65,19 @@ export const poolScoped = (id: string) => ({
 
 export function buildService(
   assignments: unknown,
-  opts: { timezone?: string | null; registrations?: unknown[]; matches?: unknown[] } = {},
+  opts: {
+    timezone?: string | null;
+    registrations?: unknown[];
+    matches?: unknown[];
+    /** The person's global person; null = a roster row linked to none (a guest). */
+    globalPersonId?: string | null;
+    /** The viewer may see the person's Workshops (`PrivacyService.canSeeWorkshops`). */
+    showWorkshops?: boolean;
+    instructorLines?: unknown[];
+  } = {},
 ) {
   const chains = new Map<string, Chain[]>();
+  const globalPersonId = opts.globalPersonId === undefined ? 'gp-1' : opts.globalPersonId;
   const supabase = {
     service: {
       from: vi.fn((table: string) => {
@@ -75,20 +85,25 @@ export function buildService(
           table === 'referee_assignments'
             ? q(assignments)
             : table === 'persons'
-              ? q({ data: { global_person_id: 'gp-1' }, error: null })
-              : table === 'events'
-                ? q({ data: opts.timezone ? { timezone: opts.timezone } : null, error: null })
-                : table === 'registrations'
-                  ? q({ data: opts.registrations ?? [], error: null })
-                  : table === 'matches'
-                    ? q({ data: opts.matches ?? [], error: null })
-                    : q({ data: [], error: null });
+              ? q({ data: { global_person_id: globalPersonId }, error: null })
+              : table === 'workshop_instructors'
+                ? q({ data: opts.instructorLines ?? [], error: null })
+                : table === 'events'
+                  ? q({ data: opts.timezone ? { timezone: opts.timezone } : null, error: null })
+                  : table === 'registrations'
+                    ? q({ data: opts.registrations ?? [], error: null })
+                    : table === 'matches'
+                      ? q({ data: opts.matches ?? [], error: null })
+                      : q({ data: [], error: null });
         chains.set(table, [...(chains.get(table) ?? []), chain]);
         return chain;
       }),
     },
   };
-  const privacy = { canSeeWorkshops: vi.fn(async () => false) };
+  const privacy = {
+    canSeeWorkshops: vi.fn(async () => opts.showWorkshops ?? false),
+    hiddenWorkshopGlobalPersonIds: vi.fn(async () => new Set<string>()),
+  };
   return {
     // No `orgs`: `getSchedule` gates nothing — the public door's gate has its own file.
     service: new PublicScheduleService(supabase as never, privacy as never, {} as never),
