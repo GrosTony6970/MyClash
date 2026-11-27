@@ -795,7 +795,7 @@
     "apps/web-public/src/components/me/ScheduleView.tsx:379",
     "apps/web-public/src/components/me/ScheduleView.tsx:66",
     "apps/web-public/src/components/me/WorkshopRegisterControls.tsx:138",
-    "apps/web-public/src/components/workshops/WorkshopCard.tsx:75",
+    "apps/web-public/src/components/workshops/WorkshopCard.tsx:80",
     "apps/web-public/src/lib/supabase-browser.ts:68",
     "apps/web-staff/app/lices/[liceId]/_components/BracketDisclosure.tsx:94",
     "apps/web-staff/app/lices/[liceId]/_components/PoolsDisclosure.tsx:110",
