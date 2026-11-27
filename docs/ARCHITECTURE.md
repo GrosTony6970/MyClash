@@ -5556,20 +5556,28 @@ confirmation is sealed, and everything else is a name or a code.
 10. The answer, the two fighters' names (`vw_tournament_query_matches`; a failed read throws) and
     the sealed confirmation (call G).
 
-**The apply, in order** (`apply-referee-assignment.ts:204-241`):
+**The apply, in order** (`apply-referee-assignment.ts:205-262`):
 
 1. Maintenance first, before the token is opened or anything is read.
 2. No confirmation key → the tool throws.
 3. The token opens, or the tool refuses: "This confirmation is not valid any more. Preview the
    change again."
 4. The Match and its Event, read from the Match row, never from the token (`readMatch`). A Match
-   that is gone gives the same refusal as a bad token.
+   that is gone gives the same refusal as a bad token. The Event's id is the lock's key.
 5. The write gate again: maintenance, the organiser bar, an Event that is over, the board lock.
+   Here it is an early exit only: a caller it refuses makes no call to GoTrue.
 6. The app's name (call L).
 7. The role by the token's skill id. A role that is gone gives the bad-token refusal.
-   Steps 8 and 9 run one apply at a time per Event (`runOnePerEvent`,
-   `tools/one-write-per-event.ts`); see "Two applies of one Event at once" below.
-8. The recheck (`recheck`, `apply-referee-assignment.ts:117-152`), on a new crew read. The holder
+   Steps 7a to 9 run one apply at a time per Event (`runOnePerEvent`,
+   `tools/one-write-per-event.ts`, `gateRecheckWrite`); see "Two applies of one Event at once"
+   below. They are database reads and the write only, with no call to GoTrue.
+
+   - 7a. The Match and its Event, read again, and the write gate again on them. A wait behind
+     another apply can outlast the caller's editor role, the Event's status, the board's lock or
+     maintenance. So the gate that counts is the one asked after the wait, on the Event's status
+     as it is then.
+
+8. The recheck (`recheck`, `apply-referee-assignment.ts:118-153`), on a new crew read. The holder
    must still be the token's `prev`, and who holds the role once written must still be the token's
    `next` (call H). A removal: the holder must still be a Match-level row (call M). A swap: the new
    referee must still be on the Event's referee roster and still hold the role's skill, and the
@@ -5658,7 +5666,7 @@ The calls made (the operator may overrule):
   case- and accent-blind (`namedBest`). Several people → a refusal that names each with their
   club, so Claude asks which. Nobody → a refusal. A person without the role's skill refuses by name.
 
-**The audit row** (`apply-referee-assignment.ts:243-272`). `setRefereeRoleAssignment` writes no
+**The audit row** (`apply-referee-assignment.ts:264-293`). `setRefereeRoleAssignment` writes no
 audit row, so the tool writes one per write, after the write only:
 
 - action `match.referee_role_assigned`, or `match.referee_role_removed` for a removal;
@@ -5692,15 +5700,17 @@ The races, named:
   roster, the checker, and the write's own lock and checker reads. The app's name is the one call
   to GoTrue (the sign-in server). It is read before the re-read and before the per-Event lock. So
   no call to GoTrue sits between the re-read and the write, only database reads, and no apply of
-  the Event waits on GoTrue (`apply-referee-assignment.ts:15-21,220-223`). Accepted.
+  the Event waits on GoTrue (`apply-referee-assignment.ts:16-22,245-248`). Accepted.
 - **Two applies of one Event at once.** Marie says "put Paul on LSW-P2-M04 and on LSW-P3-M01".
   The two Matches overlap on two pistes. Claude previews both (each is Fine: neither is written
   yet), and calls apply twice in one turn. Each apply's recheck, and each write's own `judgeWrite`,
   would run before the other's RPC lands. `replace_match_referee_role` (migration 0207) takes no
   lock. So both would pass, and Paul would referee two Matches at once: a hard rule-8 breach.
-  Fixed: the recheck and the write run one apply at a time per Event (`runOnePerEvent`,
-  `tools/one-write-per-event.ts`, a promise chain keyed by the Event id). The second apply
-  rechecks only once the first write settled, so its checker sees the first duty and refuses.
+  Fixed: the Match read, the write gate, the recheck and the write run one apply at a time per
+  Event (`runOnePerEvent`, `tools/one-write-per-event.ts`, a promise chain keyed by the Event
+  id). The second apply rechecks only once the first write settled, so its checker sees the
+  first duty and refuses. Its gate also runs after the wait. So an editor role removed, or an
+  Event completed or locked, while it waited refuses it too.
   Different Events do not wait. The lock lives in the API process. Production runs one `api`
   container (`infra/docker-compose.prod.yml`, no replicas). A second API process would need a
   shared lock: a Postgres advisory lock on the Event id, taken in the same transaction as the

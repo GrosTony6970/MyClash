@@ -8,9 +8,10 @@
  * did not see refuses (call I). A replay of the token meets the new holder and refuses.
  *
  * The race it closes: two applies of one Event at once (two Matches that overlap, one referee).
- * Each would judge before the other's write lands, and both would pass. The recheck and the
- * write run one apply at a time per Event (`runOnePerEvent`, in this process only), so the
- * second judges a crew that holds the first's write.
+ * Each would judge before the other's write lands, and both would pass. The Match read, the
+ * write gate, the recheck and the write run one apply at a time per Event (`runOnePerEvent`, in
+ * this process only), so the second judges a crew that holds the first's write, and an Event
+ * and an editor bar as they are after its wait.
  *
  * The race it accepts: the write does not compare the holder again. A change made in the app
  * between the crew re-read and the write is overwritten, and the audit row's `previousPersonId`
@@ -201,6 +202,28 @@ async function write(
   }
 }
 
+/**
+ * Inside the per-Event lock: the Match and its Event read again, the write gate again, the
+ * recheck and the write. A wait behind another apply can outlast the caller's editor rights,
+ * the Event's status, the board's lock or maintenance, so the gate judges the Event as it is
+ * after the wait. Database reads only: no call to the auth server.
+ */
+async function gateRecheckWrite(
+  deps: McpToolDeps,
+  caller: McpCaller,
+  token: ConfirmationPayload,
+  skill: RefereeSkill,
+): Promise<{ match: WriteMatch; checked: Checked } | McpRefusal> {
+  const read = await readMatch(deps, token.matchId);
+  if (!read) return STALE;
+  const { event, match } = read;
+  const gate = await refereeWriteRefusal(event, caller, deps);
+  if (gate) return gate;
+  const checked = await recheck(deps, caller, token, event, { match, skill });
+  if (isRefusal(checked)) return checked;
+  return (await write(deps, token, { match, skill }, checked.person)) ?? { match, checked };
+}
+
 export async function applyRefereeAssignment(
   confirmation: string,
   caller: McpCaller,
@@ -214,29 +237,27 @@ export async function applyRefereeAssignment(
   if (!token) return STALE;
   const read = await readMatch(deps, token.matchId);
   if (!read) return STALE;
-  const { event, match } = read;
-  const gate = await refereeWriteRefusal(event, caller, deps);
-  if (gate) return gate;
-  // Before the recheck and the lock: this call goes to the auth server, with no timeout of
-  // ours. Between the crew re-read and the write there is no call to the auth server, only
-  // database reads, so no apply of the Event waits on the auth server.
+  const { event } = read;
+  // An early exit: a caller the gate refuses makes no call to the auth server. The gate is
+  // asked again inside the lock, where it counts.
+  const early = await refereeWriteRefusal(event, caller, deps);
+  if (early) return early;
+  // Before the lock: this call goes to the auth server, with no timeout of ours. Inside the
+  // lock there is no call to the auth server, only database reads, so no apply of the Event
+  // waits on the auth server.
   const clientName = await appName(deps, caller.clientId);
   const skill = (await eventSkills(deps, event.id)).find((s) => s.id === token.role);
   if (!skill) return STALE;
-  // One recheck-and-write at a time per Event: a second apply judges after the first wrote.
-  const checked = await runOnePerEvent(event.id, async () => {
-    const seen = await recheck(deps, caller, token, event, { match, skill });
-    if (isRefusal(seen)) return seen;
-    return (await write(deps, token, { match, skill }, seen.person)) ?? seen;
-  });
-  if (isRefusal(checked)) return checked;
+  // One gate, recheck and write at a time per Event: a second apply judges after the first wrote.
+  const done = await runOnePerEvent(event.id, () => gateRecheckWrite(deps, caller, token, skill));
+  if (isRefusal(done)) return done;
   await audit(deps, caller, token, { clientName, roleName: skill.name });
   return {
     result: 'Done',
-    match: match.code,
+    match: done.match.code,
     role: skill.name,
-    from: checked.from,
-    to: checked.to,
+    from: done.checked.from,
+    to: done.checked.to,
   };
 }
 

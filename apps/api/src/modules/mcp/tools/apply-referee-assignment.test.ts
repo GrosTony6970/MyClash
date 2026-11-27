@@ -12,6 +12,7 @@ import {
   crewRow,
   DECLARANT,
   EVENT,
+  forbidden,
   getClient,
   id,
   insert,
@@ -222,6 +223,33 @@ describe('apply_referee_assignment, two applies of one Event at once', () => {
     expect(await second).toEqual({ refusal: CHANGED });
     expect(calls.filter((c) => c.select === CREW_SELECT)).toHaveLength(2);
     expect(setRefereeRoleAssignment).toHaveBeenCalledTimes(1);
+  });
+
+  // The gate before the wait is an early exit only: the waiting apply asks it again.
+  it.each([
+    [
+      'the caller lost the editor role',
+      () => assertOrgRole.mockRejectedValue(forbidden()),
+      "Only the Event's organisers (editor or above) can change its referees.",
+    ],
+    [
+      'the Event was completed',
+      () => (world.eventStatus = 'completed'),
+      'FAL 2026 is over: its referees can no longer change.',
+    ],
+  ])('refuses the waiting apply when %s during its wait', async (_, change, words) => {
+    let land!: () => void;
+    setRefereeRoleAssignment.mockImplementationOnce(() => new Promise<void>((ok) => (land = ok)));
+    const first = apply(seal());
+    // A token the first write does not stale: the crew in this world stays Jean's.
+    const second = apply(seal());
+    await vi.waitFor(() => expect(setRefereeRoleAssignment).toHaveBeenCalledTimes(1));
+    change();
+    land();
+    expect(await first).toMatchObject({ result: 'Done' });
+    expect(await second).toEqual({ refusal: words });
+    expect(setRefereeRoleAssignment).toHaveBeenCalledTimes(1);
+    expect(insert).toHaveBeenCalledTimes(1);
   });
 });
 
