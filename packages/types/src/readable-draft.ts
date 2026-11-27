@@ -36,7 +36,7 @@ export interface ReadablePhase {
 
 /**
  * One draft action by name, one variant per action kind a draft carries. A plain value the
- * action does not hold (or holds in the wrong type) is absent. `unsupported` is an action of
+ * action does not hold (or holds in the wrong type, or as a uuid) is absent. `unsupported` is an action of
  * no known kind: a failed draft from the form flow may store anything the model answered.
  */
 export type ReadableDraftAction =

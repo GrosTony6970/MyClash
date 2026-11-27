@@ -10,6 +10,8 @@ import {
   FOREIGN_MATCH,
   LICE,
   POOL,
+  FOREIGN_POOL,
+  FOREIGN_PHASE,
   PHASE,
   PERSON,
   SKILL,
@@ -138,11 +140,13 @@ describe('readableDraftActions', () => {
     expect(filters('events', 'eq')).toEqual([['id', EVENT]]);
   });
 
-  it("reads another Event's Tournament and Match as missing, never by their names", async () => {
+  it("reads another Event's Tournament, Match, Pool, phase and role as missing", async () => {
     const readable = await readableDraftActions(seeded().service as never, EVENT, [
       [{ kind: 'generate_pools', tournamentId: FOREIGN_TOURNAMENT, poolCount: 2 }],
       [{ kind: 'schedule_match', matchId: FOREIGN_MATCH, liceId: LICE, scheduledAt: 'x' }],
       [{ kind: 'assign_referee', userId: PERSON, role: FOREIGN_SKILL, matchId: FOREIGN_MATCH }],
+      [{ kind: 'assign_referee', userId: PERSON, role: SKILL, poolId: FOREIGN_POOL }],
+      [{ kind: 'generate_bracket', tournamentId: LONGSWORD, poolPhaseId: FOREIGN_PHASE }],
     ]);
 
     expect(readable).toEqual([
@@ -164,6 +168,15 @@ describe('readableDraftActions', () => {
           match: MISSING,
         },
       ],
+      [
+        {
+          kind: 'assign_referee',
+          referee: { name: 'Paul Martin' },
+          role: { name: 'Déclarant' },
+          pool: MISSING,
+        },
+      ],
+      [{ kind: 'generate_bracket', tournament: { name: 'Longsword Open' }, poolPhase: MISSING }],
     ]);
   });
 
@@ -239,6 +252,27 @@ describe('readableDraftActions', () => {
     ]);
     const tables = ['tournaments', 'matches', 'lices', 'pools', 'phases', 'event_referees'];
     expect(tables.flatMap((table) => filtersFor(db.from, table, 'in'))).toEqual([]);
+  });
+
+  it("leaves out a uuid the model wrote in a new Tournament's text", async () => {
+    const readable = await readableDraftActions(seeded().service as never, EVENT, [
+      [
+        {
+          kind: 'create_tournament',
+          name: LONGSWORD,
+          slug: GONE,
+          weapon: PHASE,
+          rulesetCode: POOL,
+        },
+      ],
+      [{ kind: 'create_tournament', name: 'Sabre Open', slug: 'sabre-open', rulesetCode: LICE }],
+    ]);
+
+    expect(readable).toEqual([
+      [{ kind: 'create_tournament' }],
+      [{ kind: 'create_tournament', name: 'Sabre Open', slug: 'sabre-open' }],
+    ]);
+    expectNoRawIds(readable);
   });
 
   it('throws on a failed read rather than read the name as missing', async () => {

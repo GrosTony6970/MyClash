@@ -13,7 +13,9 @@ export const MATCH = '33333333-3333-4333-8333-333333333331';
 export const FOREIGN_MATCH = '33333333-3333-4333-8333-333333333332';
 export const LICE = '44444444-4444-4444-8444-444444444441';
 export const POOL = '55555555-5555-4555-8555-555555555551';
+export const FOREIGN_POOL = '55555555-5555-4555-8555-555555555552';
 export const PHASE = '66666666-6666-4666-8666-666666666661';
+export const FOREIGN_PHASE = '66666666-6666-4666-8666-666666666662';
 export const PERSON = '77777777-7777-4777-8777-777777777771';
 export const SKILL = '88888888-8888-4888-8888-888888888881';
 export const FOREIGN_SKILL = '88888888-8888-4888-8888-888888888882';
@@ -21,6 +23,7 @@ export const FOREIGN_SKILL = '88888888-8888-4888-8888-888888888882';
 export const GONE = '99999999-9999-4999-8999-999999999999';
 
 const own = { name: 'Longsword Open', event_id: EVENT };
+const elsewhere = { name: 'Sabre Cup', event_id: OTHER_EVENT };
 
 /** Pool bout 4 of the Longsword Open's second Pool, and a bout of another Event. */
 const MATCH_ROWS = [
@@ -43,7 +46,7 @@ const MATCH_ROWS = [
   },
 ];
 
-/** The Event's rows, and one Tournament, Match and role of another Event. */
+/** The Event's rows, and one Tournament, Match, Pool, phase and role of another Event. */
 export function seeded(overrides: Record<string, TableSeed> = {}) {
   return mockSupabase({
     events: { rows: [{ id: EVENT, timezone: 'Europe/Paris' }] },
@@ -55,8 +58,18 @@ export function seeded(overrides: Record<string, TableSeed> = {}) {
     },
     matches: { rows: MATCH_ROWS },
     lices: { rows: [{ id: LICE, event_id: EVENT, name: 'Piste 2' }] },
-    pools: { rows: [{ id: POOL, sort_order: 1, phases: { tournaments: own } }] },
-    phases: { rows: [{ id: PHASE, type: 'pool', tournaments: own }] },
+    pools: {
+      rows: [
+        { id: POOL, sort_order: 1, phases: { tournaments: own } },
+        { id: FOREIGN_POOL, sort_order: 0, phases: { tournaments: elsewhere } },
+      ],
+    },
+    phases: {
+      rows: [
+        { id: PHASE, type: 'pool', tournaments: own },
+        { id: FOREIGN_PHASE, type: 'pool', tournaments: elsewhere },
+      ],
+    },
     event_referees: {
       rows: [
         {

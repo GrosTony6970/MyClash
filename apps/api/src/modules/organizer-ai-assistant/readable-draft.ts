@@ -9,6 +9,7 @@ import type {
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { eventZone } from '../../common/event-clock';
 import { inListChunks } from '../../common/postgrest-in-list';
+import { readInstant } from '../../common/read-instant';
 import { isUuidShape } from '../../common/uuid-shape';
 import { ROUND_CODE_EMBEDS, roundCodeFromMatchRow } from '../matches/round-code.helper';
 import { eventSkills } from '../mcp/tools/referee-write-gate';
@@ -228,11 +229,18 @@ const nameOf = (names: Map<string, string>, id: unknown): ReadableName => {
   return typeof found === 'string' ? { name: found } : found;
 };
 
-/** An instant the placement door would read (`Date.parse`), as ISO; null when it cannot. */
+/** The start as the placement door reads it (`readInstant`), as ISO; null when it cannot. */
 function instant(value: unknown): string | null {
-  const parsed = typeof value === 'string' ? Date.parse(value) : NaN;
-  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+  const parsed = readInstant(value);
+  return parsed === null ? null : new Date(parsed).toISOString();
 }
+
+/**
+ * A text value the model wrote, shown as written. A uuid-shaped one is absent: whatever it is,
+ * it would put an id in the names.
+ */
+const plainText = (value: unknown): string | undefined =>
+  isUuidShape(value) ? undefined : text(value);
 
 /** The name of an optional id: absent when the action holds none, else the name or missing. */
 function namedIfGiven<T>(names: Map<string, T>, id: unknown): T | ReadableMissing | undefined {
@@ -243,10 +251,10 @@ function namedIfGiven<T>(names: Map<string, T>, id: unknown): T | ReadableMissin
 const NAMERS: Record<string, (a: Action, n: Names) => ReadableDraftAction> = {
   create_tournament: (a) => ({
     kind: 'create_tournament',
-    name: text(a['name']),
-    slug: text(a['slug']),
-    weapon: text(a['weapon']),
-    rulesetCode: text(a['rulesetCode']),
+    name: plainText(a['name']),
+    slug: plainText(a['slug']),
+    weapon: plainText(a['weapon']),
+    rulesetCode: plainText(a['rulesetCode']),
   }),
   generate_pools: (a, n) => ({
     kind: 'generate_pools',

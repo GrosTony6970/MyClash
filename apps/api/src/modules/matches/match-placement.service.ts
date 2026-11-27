@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { inListChunks } from '../../common/postgrest-in-list';
+import { readInstant } from '../../common/read-instant';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
 import { assertLicesBelongToEvent } from '../lices/lices-in-event';
@@ -132,7 +133,7 @@ export class MatchPlacementService {
     if (placements.length === 0) return;
 
     for (const placement of placements) {
-      if (placement.scheduledAt != null && !Number.isFinite(Date.parse(placement.scheduledAt))) {
+      if (placement.scheduledAt != null && readInstant(placement.scheduledAt) === null) {
         // Before `matchWindowMs`, which throws a RangeError — a scrubbed 500.
         // The AI door hands us `String(action['scheduledAt'])` unvalidated.
         throw new BadRequestException(`Cannot read the time "${placement.scheduledAt}"`);
