@@ -163,7 +163,6 @@ export const pick = (page: Page) =>
     .getByTestId('photo-picker')
     .setInputFiles({ name: 'a.jpg', mimeType: 'image/jpeg', buffer: JPEG });
 export const sendButton = (page: Page) => page.getByRole('button', { name: 'Send', exact: true });
-export const pickButton = (page: Page) =>
-  page.getByRole('button', { name: 'Take or choose photos' });
+export const pickButton = (page: Page) => page.getByRole('button', { name: 'Choose photos' });
 export const myTiles = (page: Page) => page.getByTestId('my-photo');
 export const tabStrip = (page: Page) => page.getByRole('main').getByRole('tablist');

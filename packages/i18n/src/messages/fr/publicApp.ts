@@ -1514,7 +1514,8 @@ export const publicApp = {
   },
   photoSend: {
     title: 'Envoyer des photos',
-    pick: 'Prendre ou choisir des photos',
+    takePhoto: 'Prendre une photo',
+    choosePhotos: 'Choisir des photos',
     nameLabel: 'Votre nom',
     captionLabel: 'Légende',
     optional: 'facultatif',

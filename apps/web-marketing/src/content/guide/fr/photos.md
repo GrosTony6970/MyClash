@@ -34,6 +34,9 @@ L'envoi est ouvert de 0 h la veille de l'événement jusqu'à la fin du lendemai
 l'événement. Pour un événement en brouillon ou de Test, un téléphone sans compte de membre ne peut
 pas ouvrir la page d'envoi.
 
+Sur un téléphone, **Prendre une photo** ouvre l'appareil photo et **Choisir des photos** ouvre la
+galerie. Sur un ordinateur, seul **Choisir des photos** est affiché.
+
 **Les règles d'une photo :** JPEG seulement, jusqu'à 12 Mo. Une photo d'iPhone en HEIC est refusée,
 avec le conseil de régler l'appareil photo sur « Le plus compatible ». Certaines photos exportées
 d'une application de retouche sont refusées aussi : envoyez la photo telle que l'appareil l'a prise.
