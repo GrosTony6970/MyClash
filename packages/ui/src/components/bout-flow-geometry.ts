@@ -75,8 +75,8 @@ export interface BoutFlowGeometry {
   xOfMs: (ms: number) => number;
   yOf: (v: number) => number;
   /** y of the bout's finish line: the cap, or 0 when the bout counts down. */
-  capY: number;
-  capLabel: number;
+  capY: number | null;
+  capLabel: number | null;
   ticks: { x: number; label: string }[];
 }
 
@@ -100,12 +100,13 @@ export function boutFlowGeometry(
   // The cap is always on-canvas: a chart that hides the finish line cannot
   // answer the question a spectator actually has.
   const scores = points.flatMap((p) => [p.red, p.blue]);
-  const top = Math.max(series.pointCap, ...scores, 1);
+  const top = Math.max(series.pointCap ?? 0, ...scores, 1);
   const bottom = Math.min(0, ...scores);
   const span = top - bottom || 1;
   const yOf = (v: number) => CHART_PAD.top + innerH - ((v - bottom) / span) * innerH;
 
-  const capLabel = series.reverse ? 0 : series.pointCap;
+  // A venues bout has no cap to draw.
+  const capLabel = series.pointCap === null ? null : series.reverse ? 0 : series.pointCap;
   const last = points[n - 1];
   const ticks =
     xAxis === 'time'
@@ -118,5 +119,13 @@ export function boutFlowGeometry(
           { x: xOf(last!, n - 1), label: String(last?.number ?? n) },
         ];
 
-  return { height: s.height, xOf, xOfMs, yOf, capY: yOf(capLabel), capLabel, ticks };
+  return {
+    height: s.height,
+    xOf,
+    xOfMs,
+    yOf,
+    capY: capLabel === null ? null : yOf(capLabel),
+    capLabel,
+    ticks,
+  };
 }

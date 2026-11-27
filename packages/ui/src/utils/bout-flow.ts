@@ -72,8 +72,8 @@ export interface BoutFlowSeries {
   maxDoubles: number | null;
   /** True when the bout ended 0–0 on the double cap. */
   doubleLoss: boolean;
-  /** The score that ends the bout — drawn as the chart's ceiling. */
-  pointCap: number;
+  /** The score that ends the bout — drawn as the chart's ceiling. Null in a venues bout: no cap. */
+  pointCap: number | null;
   /** True when the bout scores DOWN from the cap, so the ceiling is the floor. */
   reverse: boolean;
 }
@@ -340,7 +340,7 @@ export function buildBoutFlow({
     doubles,
     maxDoubles: maxDoubles === null || maxDoubles <= 0 ? null : maxDoubles,
     doubleLoss,
-    pointCap: cap,
+    pointCap: matchFormat.scoringUnit === 'venues' ? null : cap,
     reverse,
   };
 }

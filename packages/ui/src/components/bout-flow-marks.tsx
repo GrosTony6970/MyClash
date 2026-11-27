@@ -182,26 +182,30 @@ export function Axes({
 }) {
   return (
     <g>
-      <line
-        x1={CHART_PAD.left}
-        y1={geo.capY}
-        x2={CHART_W - CHART_PAD.right}
-        y2={geo.capY}
-        className={styles.grid}
-        stroke="currentColor"
-        strokeWidth={1}
-        strokeDasharray="4 4"
-      />
-      <text
-        x={CHART_PAD.left - 5}
-        y={geo.capY}
-        textAnchor="end"
-        dominantBaseline="middle"
-        className={`fill-current ${styles.label}`}
-        fontSize={styles.axisFont}
-      >
-        {geo.capLabel}
-      </text>
+      {geo.capY !== null && (
+        <>
+          <line
+            x1={CHART_PAD.left}
+            y1={geo.capY}
+            x2={CHART_W - CHART_PAD.right}
+            y2={geo.capY}
+            className={styles.grid}
+            stroke="currentColor"
+            strokeWidth={1}
+            strokeDasharray="4 4"
+          />
+          <text
+            x={CHART_PAD.left - 5}
+            y={geo.capY}
+            textAnchor="end"
+            dominantBaseline="middle"
+            className={`fill-current ${styles.label}`}
+            fontSize={styles.axisFont}
+          >
+            {geo.capLabel}
+          </text>
+        </>
+      )}
       {geo.ticks.map((tick, i) => (
         <text
           key={`${tick.label}-${String(i)}`}

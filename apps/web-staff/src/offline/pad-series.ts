@@ -30,7 +30,7 @@ import {
   type MatchFormatConfig,
   type PhaseType,
 } from '@myclash/types';
-import type { ExchangeRow, Penalty } from '@myclash/ui';
+import { isWonVenue, type ExchangeRow, type Penalty } from '@myclash/ui';
 import type { OutboxEntry } from './db';
 import { countsDown, serverScore } from './pad-server-score';
 import { provisionalDeltas } from './pending-events';
@@ -270,8 +270,7 @@ function roundCount(args: PadSeriesArgs, round: number, serverRound: number) {
 }
 
 /** A venue `side` won: a clean hit of theirs. Read from the exchange type, as the server does. */
-const wonVenue = (side: Color) => (row: ExchangeRow) =>
-  row.type === 'clean' && row.scoringSide === side;
+const wonVenue = (side: Color) => (row: ExchangeRow) => isWonVenue(row) && row.scoringSide === side;
 
 /** The doubles and the venues won of a round's rows: the server's, plus the tablet's. */
 function tally(server: readonly ExchangeRow[], queued: readonly ExchangeRow[]) {

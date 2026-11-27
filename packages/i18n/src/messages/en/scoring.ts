@@ -592,6 +592,7 @@ export const scoring = {
   },
   rounds: {
     counter: 'Round {current}/{total}',
+    venuesCounter: 'Venues {won}/{total}',
     label: 'Round {current}',
     roundComplete: 'Round {round} complete',
     seriesTally: 'Rounds',

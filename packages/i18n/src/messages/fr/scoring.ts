@@ -562,6 +562,7 @@ export const scoring = {
   },
   rounds: {
     counter: 'Manche {current}/{total}',
+    venuesCounter: 'Venues {won}/{total}',
     label: 'Manche {current}',
     roundComplete: 'Manche {round} terminée',
     seriesTally: 'Manches',

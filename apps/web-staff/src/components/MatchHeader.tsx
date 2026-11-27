@@ -71,6 +71,8 @@ interface MatchHeaderProps {
   currentRound?: number;
   redRoundWins?: number;
   blueRoundWins?: number;
+  /** The venues won in the open round, over the venues a round runs to. Null: a points bout. */
+  venues?: { won: number; total: number } | null;
 }
 
 export function MatchHeader({
@@ -94,6 +96,7 @@ export function MatchHeader({
   currentRound = 1,
   redRoundWins = 0,
   blueRoundWins = 0,
+  venues = null,
 }: MatchHeaderProps) {
   const { t } = useI18n();
   const { chromeScope } = useScoringTheme();
@@ -194,6 +197,14 @@ export function MatchHeader({
                 {blueRoundWins}
                 <CornerDot hex={blueStyle.border} />
               </span>
+            </span>
+          )}
+          {venues && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-info/40 bg-info/10 px-3 py-0.5 text-xs font-bold tabular-nums text-info">
+              {t('scoring.rounds.venuesCounter', {
+                won: String(venues.won),
+                total: String(venues.total),
+              })}
             </span>
           )}
           {contextLine && <span className="text-xs font-semibold text-muted">{contextLine}</span>}

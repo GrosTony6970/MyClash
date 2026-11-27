@@ -47,6 +47,7 @@ import {
   settledConfig,
   type HeldMatchConfig,
 } from '../lib/bout-rules';
+import { padPointCap, venuesCounterOnPad } from '../lib/venues-pad';
 import { cardCatalogueKey } from '../lib/penalty-catalogue';
 import { sideStyle, useWakeLock } from '@myclash/ui';
 import { effectiveTimeLimitSeconds, elapsedActiveMs, levelChainApplies } from './scoreboard-clock';
@@ -790,6 +791,7 @@ export function MatchView({
         currentRound={series.round}
         redRoundWins={series.redRoundWins}
         blueRoundWins={series.blueRoundWins}
+        venues={venuesCounterOnPad(match, matchFormat, series.redVenuesWon + series.blueVenuesWon)}
       />
 
       {match.lockedAt && (
@@ -868,7 +870,7 @@ export function MatchView({
           unconfirmed={readFromTabletAt !== null}
           leading={!reverseScoring && redScore > blueScore}
           readOnly={!!match.lockedAt}
-          pointCap={matchFormat.pointCap}
+          pointCap={padPointCap(matchFormat)}
           reverse={reverseScoring}
           config={scoringConfig}
           scoringEnabled={scoringEnabled}
@@ -929,7 +931,7 @@ export function MatchView({
           unconfirmed={readFromTabletAt !== null}
           leading={!reverseScoring && blueScore > redScore}
           readOnly={!!match.lockedAt}
-          pointCap={matchFormat.pointCap}
+          pointCap={padPointCap(matchFormat)}
           reverse={reverseScoring}
           config={scoringConfig}
           scoringEnabled={scoringEnabled}

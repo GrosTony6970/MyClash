@@ -271,6 +271,7 @@ export type {
 
 export type { ClockEvent } from './types/match-events';
 
+export { isWonVenue, venuesWonInRound } from './utils/venues-won';
 export { buildBoutFlow } from './utils/bout-flow';
 export type {
   BoutFlowSeries,
