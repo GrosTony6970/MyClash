@@ -2,6 +2,32 @@ import { describe, expect, it } from 'vitest';
 import { buildRefereeStats, protestsFacedBy } from './referee-stats';
 
 describe('buildRefereeStats', () => {
+  it('averages the time per role, a Match held in two roles counting in both', () => {
+    const stats = buildRefereeStats({
+      userId: 'ref',
+      assignments: [
+        { matchId: 'm1', userId: 'ref', role: 'arbitre_declarant' },
+        { matchId: 'm2', userId: 'ref', role: 'arbitre_declarant' },
+        { matchId: 'm2', userId: 'ref', role: 'arbitre_table' },
+        { matchId: 'm3', userId: 'ref', role: 'arbitre_table' },
+        { matchId: 'm3', userId: 'other', role: 'arbitre_assesseur' },
+      ],
+      durations: [
+        { matchId: 'm1', durationActiveMs: 60_000 },
+        { matchId: 'm2', durationActiveMs: 120_000 },
+        { matchId: 'm3', durationActiveMs: 300_000 },
+      ],
+      penalties: [],
+    });
+
+    expect(stats.averageTimeMsByRole).toEqual({
+      arbitre_declarant: 90_000, // m1 + m2
+      arbitre_assesseur: 0, // never held — the other referee's role is not ours
+      arbitre_table: 210_000, // m2 + m3
+    });
+    expect(stats.averageRefereeTimeMs).toBe(160_000); // m1 + m2 + m3, each Match once
+  });
+
   it('counts referee matches, roles, average time, cards credited to declarant, and buddies', () => {
     const stats = buildRefereeStats({
       userId: 'user-ref',
@@ -65,6 +91,11 @@ describe('buildRefereeStats', () => {
       arbitre_table: 1,
     });
     expect(stats.averageRefereeTimeMs).toBe(150_000);
+    expect(stats.averageTimeMsByRole).toEqual({
+      arbitre_declarant: 120_000,
+      arbitre_assesseur: 0,
+      arbitre_table: 180_000,
+    });
     expect(stats.cards).toEqual({ yellow: 1, red: 1, black: 0 });
     expect(stats.bestBuddies[0]).toEqual({
       userId: 'buddy-1',

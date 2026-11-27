@@ -31,8 +31,9 @@ export function useSortableList<T>(
     [rows, sortKey, direction, getValue],
   );
 
-  function toggle(columnKey: string) {
-    const next = nextSortState(sortKey, direction, columnKey);
+  /** `preferred` is the column's first direction (see `nextSortState`); omitted, it is `'asc'`. */
+  function toggle(columnKey: string, preferred?: 'asc' | 'desc') {
+    const next = nextSortState(sortKey, direction, columnKey, preferred);
     setSortKey(next.key);
     setDirection(next.direction);
   }
