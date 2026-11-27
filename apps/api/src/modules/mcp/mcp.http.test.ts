@@ -29,8 +29,11 @@ describe('the MCP door, over HTTP', () => {
       clientInfo: { name: 'test-client', version: '0' },
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { result: { serverInfo: { name: string } } };
+    const body = (await res.json()) as {
+      result: { serverInfo: { name: string; version: string } };
+    };
     expect(body.result.serverInfo.name).toBe('myclash');
+    expect(body.result.serverInfo.version).toBe('1.3.0');
   });
 
   it('lists every tool, sorted', async () => {
@@ -40,6 +43,8 @@ describe('the MCP door, over HTTP', () => {
     expect(body.result.tools.map((t) => t.name).sort()).toEqual([
       'apply_referee_assignment',
       'compare_clubs',
+      'draft_bracket',
+      'draft_match_schedule',
       'draft_pools',
       'draft_tournament',
       'estimate_pool_completion',

@@ -2,17 +2,25 @@
  * draft-tools.ts — Claude's draft tools (MCP slice 4b): each saves ONE assistant draft that the
  * person applies in MyClash. Every one goes through `draftGate`, refuses what Apply would refuse
  * (call X), and answers through `saveDraft`. `force` is never exposed: a draft never replaces
- * Pools or a bracket.
+ * Pools or a bracket. `draft_match_schedule` is `draft-match-schedule.ts`'s.
  */
 import { BadRequestException } from '@nestjs/common';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { createTournamentSchema, rulesetCodeSchema } from '../../events/dto/events.dto';
 import { catalogWeaponName } from '../../fighters/weapon-catalog.util';
-import { generatePoolsSchema } from '../../phases/dto/phases.dto';
+import { generateBracketSchema, generatePoolsSchema } from '../../phases/dto/phases.dto';
 import { existingPhase } from '../../phases/existing-phase';
 import type { McpCaller, McpToolDeps } from '../mcp-server';
-import { draftGate, saveDraft, type DraftAnswer, type DraftGate } from './draft-gate';
+import {
+  DRAFT_ANNOTATIONS,
+  DRAFT_NEXT,
+  draftGate,
+  saveDraft,
+  type DraftAnswer,
+  type DraftGate,
+} from './draft-gate';
+import { registerDraftMatchSchedule } from './draft-match-schedule';
 import { answer, isRefusal, slug, type McpRefusal } from './mcp-answer';
 import { readableTournamentIn, tournamentIdBySlug } from './readable-event';
 
@@ -113,18 +121,40 @@ export async function draftPools(
   return saveDraft(gate, [action], caller, deps);
 }
 
-/** The draft tools write a draft row and nothing in the Event (call Z). */
-const DRAFT_ANNOTATIONS = {
-  readOnlyHint: false,
-  destructiveHint: false,
-  idempotentHint: false,
-  openWorldHint: false,
-};
+export interface DraftBracketArgs {
+  event: string;
+  tournament: string;
+  phaseType?: 'single_elim' | 'double_elim';
+  qualifyCount?: number;
+  bracketSize?: number;
+}
 
-const DRAFT_NEXT =
-  ' Changes nothing in the Event: it saves a draft and answers it by name with a `link`. Tell ' +
-  'the person what the draft does and give them the link; it changes the Event only when they ' +
-  "press Apply in MyClash. For the organisation's admins.";
+/** `draft_bracket`: the bracket of a Tournament that has none yet. */
+export async function draftBracket(
+  args: DraftBracketArgs,
+  caller: McpCaller,
+  deps: McpToolDeps,
+): Promise<DraftAnswer | McpRefusal> {
+  const gate = await draftGate(args.event, caller, deps);
+  if (isRefusal(gate)) return gate;
+  const found = await readableTournamentIn(gate.event, args.tournament, caller, deps);
+  if (isRefusal(found)) return found;
+  // Either type refuses, as Generate Bracket refuses either without `force`.
+  const types = ['single_elim', 'double_elim'];
+  if (await existingPhase(deps.supabase.service, found.tournamentId, types)) {
+    return {
+      refusal: `The Tournament "${args.tournament}" already has a bracket. Change it in MyClash.`,
+    };
+  }
+  const action = {
+    kind: 'generate_bracket',
+    tournamentId: found.tournamentId,
+    ...(args.phaseType === undefined ? {} : { phaseType: args.phaseType }),
+    ...(args.qualifyCount === undefined ? {} : { qualifyCount: args.qualifyCount }),
+    ...(args.bracketSize === undefined ? {} : { bracketSize: args.bracketSize }),
+  };
+  return saveDraft(gate, [action], caller, deps);
+}
 
 const poolsInput = z
   .object({
@@ -179,5 +209,31 @@ export function registerDraftTools(server: McpServer, caller: McpCaller, deps: M
       annotations: DRAFT_ANNOTATIONS,
     },
     (input) => answer('draft_pools', () => draftPools(input, caller, deps)),
+  );
+  registerDraftBracket(server, caller, deps);
+  registerDraftMatchSchedule(server, caller, deps);
+}
+
+function registerDraftBracket(server: McpServer, caller: McpCaller, deps: McpToolDeps): void {
+  server.registerTool(
+    'draft_bracket',
+    {
+      description:
+        "Draft a Tournament's bracket: the Event slug (`event`), the Tournament slug " +
+        '(`tournament`), `phaseType` single_elim (the default) or double_elim, `qualifyCount` ' +
+        '(the top fighters who go through, 2 or more; default every registered fighter) and ' +
+        '`bracketSize` (a power of 2, up to 128). Refuses a Tournament that already has a ' +
+        'bracket.' +
+        DRAFT_NEXT,
+      inputSchema: {
+        event: slug,
+        tournament: slug,
+        phaseType: generateBracketSchema.shape.phaseType,
+        qualifyCount: generateBracketSchema.shape.qualifyCount,
+        bracketSize: generateBracketSchema.shape.bracketSize,
+      },
+      annotations: DRAFT_ANNOTATIONS,
+    },
+    (input) => answer('draft_bracket', () => draftBracket(input, caller, deps)),
   );
 }

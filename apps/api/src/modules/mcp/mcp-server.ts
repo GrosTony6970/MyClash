@@ -57,7 +57,7 @@ export interface McpToolDeps extends EventAuthzDeps {
 }
 
 /** The version of the tool set Claude sees in `serverInfo`. Raise it when a tool changes. */
-const MCP_SERVER_VERSION = '1.2.0';
+const MCP_SERVER_VERSION = '1.3.0';
 
 /**
  * One MCP server for one request (the door is stateless), with the caller already fixed: no tool

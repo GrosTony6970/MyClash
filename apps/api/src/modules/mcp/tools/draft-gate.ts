@@ -35,6 +35,20 @@ export interface DraftAnswer {
   status: string;
 }
 
+/** The draft tools write a draft row and nothing in the Event (call Z). */
+export const DRAFT_ANNOTATIONS = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: false,
+};
+
+/** The end of every draft tool's description: what it changes, and what Claude does next. */
+export const DRAFT_NEXT =
+  ' Changes nothing in the Event: it saves a draft and answers it by name with a `link`. Tell ' +
+  'the person what the draft does and give them the link; it changes the Event only when they ' +
+  "press Apply in MyClash. For the organisation's admins.";
+
 /** The Event's organisation: its id for the admin bar, its slug for the link. */
 async function eventOrganisation(
   deps: McpToolDeps,

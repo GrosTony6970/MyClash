@@ -39,7 +39,7 @@ export const generatePoolsSchema = z
   .strict();
 export class GeneratePoolsDto extends createZodDto(generatePoolsSchema) {}
 
-const generateBracketSchema = z
+export const generateBracketSchema = z
   .object({
     /**
      * Bracket format. `single_elim` (default) generates a single-elimination

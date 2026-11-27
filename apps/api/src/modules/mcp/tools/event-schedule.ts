@@ -32,7 +32,7 @@ export interface EventScheduleAnswer {
 }
 
 /** Lice id to name, for this Event. A failed read throws: a bout must not lose its lice silently. */
-async function liceNames(eventId: string, deps: McpToolDeps): Promise<Map<string, string>> {
+export async function liceNames(eventId: string, deps: McpToolDeps): Promise<Map<string, string>> {
   const { data, error } = await deps.supabase.service
     .from('lices')
     .select('id, name')

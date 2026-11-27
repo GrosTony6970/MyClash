@@ -19,6 +19,8 @@ useMcpDoor();
 
 const MAINTENANCE = 'MyClash is in maintenance: nothing can change right now.';
 
+const placements = [{ match: 'LSW-P2-M04', piste: 'Piste 2', start: '2026-12-05 14:30' }];
+
 describe('the MCP tools that write, over HTTP', () => {
   // A new write tool must be named here, and proved below to refuse in maintenance, before it
   // ships.
@@ -30,6 +32,8 @@ describe('the MCP tools that write, over HTTP', () => {
     const notReadOnly = body.result.tools.filter((t) => t.annotations?.readOnlyHint !== true);
     expect(notReadOnly.map((t) => t.name).sort()).toEqual([
       'apply_referee_assignment',
+      'draft_bracket',
+      'draft_match_schedule',
       'draft_pools',
       'draft_tournament',
     ]);
@@ -51,6 +55,8 @@ describe('the MCP tools that write, over HTTP', () => {
   it.each([
     ['draft_tournament', { event: 'fal-2026', name: 'Sabre Open', slug: 'sabre-open' }],
     ['draft_pools', { event: 'fal-2026', tournament: 'longsword-open', poolCount: 4 }],
+    ['draft_bracket', { event: 'fal-2026', tournament: 'longsword-open', qualifyCount: 16 }],
+    ['draft_match_schedule', { event: 'fal-2026', tournament: 'longsword-open', placements }],
   ])('refuses %s while MyClash is read-only, before any other read', async (name, args) => {
     door.readOnly = true;
     const res = await rpc('tools/call', { name, arguments: args });
@@ -86,6 +92,21 @@ describe('the MCP tools that write, over HTTP', () => {
     expect(from).not.toHaveBeenCalled();
   });
 
+  it('refuses a draft_match_schedule of 51 placements, before the tool runs', async () => {
+    const res = await rpc('tools/call', {
+      name: 'draft_match_schedule',
+      arguments: {
+        event: 'fal-2026',
+        tournament: 'longsword-open',
+        placements: Array.from({ length: 51 }, () => placements[0]),
+      },
+    });
+    const body = (await res.json()) as ToolResultBody;
+    expect(body.result.isError).toBe(true);
+    expect(body.result.content[0].text).toContain('At most 50 placements in one draft.');
+    expect(from).not.toHaveBeenCalled();
+  });
+
   // `draft_pools` hands the SDK a whole refined object, not a shape: should the SDK fall back to
   // an empty schema, Claude would see a tool that takes no arguments.
   it("lists the draft tools' arguments", async () => {
@@ -118,5 +139,18 @@ describe('the MCP tools that write, over HTTP', () => {
       'weapon',
     ]);
     expect(tournament.properties?.['name']?.type).toBe('string');
+    const bracket = schema('draft_bracket');
+    expect(Object.keys(bracket.properties ?? {}).sort()).toEqual([
+      'bracketSize',
+      'event',
+      'phaseType',
+      'qualifyCount',
+      'tournament',
+    ]);
+    expect([...(bracket.required ?? [])].sort()).toEqual(['event', 'tournament']);
+    const times = schema('draft_match_schedule');
+    expect([...(times.required ?? [])].sort()).toEqual(['event', 'placements', 'tournament']);
+    const items = (times.properties?.['placements'] as { items?: typeof times } | undefined)?.items;
+    expect([...(items?.required ?? [])].sort()).toEqual(['match', 'piste', 'start']);
   });
 });
