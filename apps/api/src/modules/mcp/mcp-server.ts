@@ -102,7 +102,8 @@ function registerMyTools(server: McpServer, caller: McpCaller, deps: McpToolDeps
     {
       description:
         "The signed-in person's own bouts, referee duties and Workshops at one Event, named by " +
-        'its slug (`event`, from my_events). Times are UTC ISO; `event.timezone` is the ' +
+        'its slug (`event`, from my_events). Each Workshop says whether they teach or attend it ' +
+        '(`role`). Times are UTC ISO; `event.timezone` is the ' +
         "Event's own zone. Refuses an Event the person is not on the roster of.",
       inputSchema: { event: z.string().min(1).max(200) },
       annotations: { readOnlyHint: true, openWorldHint: false },

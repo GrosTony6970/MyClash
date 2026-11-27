@@ -5442,6 +5442,9 @@ The rules:
 - **A referee role is shown by the skill's name** (`skillName ?? role`) in `my_events` and
   `my_schedule`, as the app does. `my_upcoming` and the `my_stats` role keys carry the raw role:
   their services hold no name. `my_schedule`'s duties carry the duty's `roundCode`.
+- **`my_schedule` lists the Workshops taught and booked**, by start, each with its `role`
+  (teaching, attending), `waitlisted`, and the `instructors` of a session attended. A session
+  taught and booked is listed once, as taught — the app's rule (`scheduleWorkshops`).
 - **A Swiss Tournament lists no round standings.** `tournament_standings` answers
   `swiss: { rounds, roundsCompleted }` (null when there is no Swiss phase) and nothing more of
   it. A double-elimination bracket keeps its last round whole: the bronze split is for
