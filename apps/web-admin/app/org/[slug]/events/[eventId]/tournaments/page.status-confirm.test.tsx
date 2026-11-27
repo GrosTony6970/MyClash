@@ -136,6 +136,42 @@ describe('the Archive button of a Tournament', () => {
   });
 });
 
+describe('two Tournament rows saving at once', () => {
+  it("one row's finished save leaves the other row asleep", async () => {
+    const list = `/api/v1/events/${EVENT_ID}/tournaments`;
+    page = await openEventPage(
+      <TournamentsPage />,
+      {
+        ...READS,
+        [list]: [...READS[list], { id: 't-2', slug: 'sabre', name: 'Sabre', status: 'running' }],
+      },
+      { [SAVE]: {}, 'PATCH /api/v1/tournaments/t-2': {} },
+    );
+    const answer = vi.mocked(apiRequest).getMockImplementation()!;
+    let release = () => undefined as void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    vi.mocked(apiRequest).mockImplementation(async (base, path, init) => {
+      if (path === '/api/v1/tournaments/t-1' && init?.method === 'PATCH') await held;
+      return answer(base, path, init);
+    });
+    /** The status menu of row `i`. */
+    const menu = (i: number) =>
+      document.body.querySelectorAll<HTMLSelectElement>('tbody select')[i]!;
+
+    await act(async () => type(menu(0), 'published'));
+    await page.settle();
+    await act(async () => type(menu(1), 'published'));
+    await page.settle();
+    // Sabre's save is done; Longsword's is still out.
+    expect(page.writes()).toEqual(['PATCH /api/v1/tournaments/t-2']);
+    expect(menu(0).disabled).toBe(true);
+
+    await act(async () => release());
+    await page.settle();
+    expect(menu(0).disabled).toBe(false);
+  });
+});
+
 describe('the Delete button of a Tournament', () => {
   const DELETE = 'DELETE /api/v1/tournaments/t-1';
 

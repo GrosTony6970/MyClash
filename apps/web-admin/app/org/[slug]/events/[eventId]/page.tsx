@@ -28,6 +28,7 @@ import {
 import { useI18n } from '@myclash/next-i18n/client';
 import { TournamentQueryPanel } from './TournamentQueryPanel';
 import { useEventStatus } from './_hooks/useEventStatus';
+import { useBusyRows } from './_hooks/useBusyRows';
 import { RequestDeletionModal } from '../_components/RequestDeletionModal';
 import { EventLogoCard } from './_components/EventLogoCard';
 import { MetricCard, WorkshopMetricCards, type WorkshopTotals } from './_components/MetricCards';
@@ -145,7 +146,7 @@ export default function EventDetailPage() {
   const [readiness, setReadiness] = useState<ReadinessReport | null>(null);
   const [readinessError, setReadinessError] = useState<string | null>(null);
   const [publishConfirm, setPublishConfirm] = useState(false);
-  const [tournamentBusy, setTournamentBusy] = useState<string | null>(null);
+  const { isBusy, setBusy } = useBusyRows();
   const [tournamentError, setTournamentError] = useState<string | null>(null);
   const [visibilityBusy, setVisibilityBusy] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(false);
@@ -201,7 +202,7 @@ export default function EventDetailPage() {
   async function changeTournamentStatus(tournamentId: string, name: string, status: string) {
     const question = statusChangeQuestion(status, name, t);
     if (question && !(await confirm(question))) return;
-    setTournamentBusy(tournamentId);
+    setBusy(tournamentId, true);
     setTournamentError(null);
     try {
       const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
@@ -215,14 +216,14 @@ export default function EventDetailPage() {
       }
       await reloadStats();
     } finally {
-      setTournamentBusy(null);
+      setBusy(tournamentId, false);
     }
   }
 
   async function toggleTournamentVisibility(tournament: Tournament) {
     // Cycle draft ↔ published. Other statuses leave the toggle disabled.
     const mode = tournament.status === 'draft' ? 'publish' : 'unpublish';
-    setTournamentBusy(tournament.id);
+    setBusy(tournament.id, true);
     setTournamentError(null);
     try {
       const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournament.id}/${mode}`, {
@@ -237,7 +238,7 @@ export default function EventDetailPage() {
       }
       await reloadStats();
     } finally {
-      setTournamentBusy(null);
+      setBusy(tournament.id, false);
     }
   }
 
@@ -609,7 +610,7 @@ export default function EventDetailPage() {
                       <select
                         aria-label={t('organizer.eventHub.dashboard.status')}
                         value={tournament.status}
-                        disabled={tournamentBusy === tournament.id || isReadOnly}
+                        disabled={isBusy(tournament.id) || isReadOnly}
                         onChange={(ev) =>
                           void changeTournamentStatus(
                             tournament.id,
@@ -643,9 +644,7 @@ export default function EventDetailPage() {
                               ? t('organizer.eventHub.dashboard.setDraft')
                               : statusLabel('tournament', tournament.status, t)
                         }
-                        disabled={
-                          !canToggleVisibility || tournamentBusy === tournament.id || isReadOnly
-                        }
+                        disabled={!canToggleVisibility || isBusy(tournament.id) || isReadOnly}
                         onClick={() => void toggleTournamentVisibility(tournament)}
                         className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                       >
@@ -676,8 +675,8 @@ export default function EventDetailPage() {
                         eventId={eventId}
                         isArchived={isArchived}
                         isReadOnly={isReadOnly}
-                        busy={tournamentBusy === tournament.id}
-                        onBusyChange={(busy) => setTournamentBusy(busy ? tournament.id : null)}
+                        busy={isBusy(tournament.id)}
+                        onBusyChange={(busy) => setBusy(tournament.id, busy)}
                         onError={setTournamentError}
                         // The table redraws from the server's answer; the readiness
                         // checklist counts Tournaments, so it reloads too.

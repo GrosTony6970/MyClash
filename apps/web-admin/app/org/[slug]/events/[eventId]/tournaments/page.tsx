@@ -19,6 +19,7 @@ import { useEffect, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { computeWizardStep } from './new/_wizard/compute-wizard-step';
 import { useEventStatus } from '../_hooks/useEventStatus';
+import { useBusyRows } from '../_hooks/useBusyRows';
 import { formatCountOfMax } from '../format-count-of-max';
 import { pillClassFor } from './_lib/pill-class-for';
 import { statusChangeQuestion } from './_lib/status-change-question';
@@ -113,7 +114,7 @@ export default function EventTournamentsPage() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [eventName, setEventName] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const { isBusy, setBusy } = useBusyRows();
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -177,7 +178,7 @@ export default function EventTournamentsPage() {
     if (nextStatus === tournament.status) return;
     const question = statusChangeQuestion(nextStatus, tournament.name, t);
     if (question && !(await confirm(question))) return;
-    setBusyId(tournament.id);
+    setBusy(tournament.id, true);
     setError(null);
     setNotice(null);
     try {
@@ -195,7 +196,7 @@ export default function EventTournamentsPage() {
       setNotice(t('organizer.tournaments.statusUpdated'));
       load();
     } finally {
-      setBusyId(null);
+      setBusy(tournament.id, false);
     }
   }
 
@@ -351,7 +352,7 @@ export default function EventTournamentsPage() {
                       <select
                         value={tournament.status}
                         onChange={(event) => void changeStatus(tournament, event.target.value)}
-                        disabled={isReadOnly || busyId === tournament.id}
+                        disabled={isReadOnly || isBusy(tournament.id)}
                         aria-label={t('organizer.tournaments.status')}
                         className={[
                           statusPillClass(tournamentStatusSemantic(tournament.status), 'light', {
@@ -378,8 +379,8 @@ export default function EventTournamentsPage() {
                       eventId={eventId}
                       isArchived={isArchived}
                       isReadOnly={isReadOnly}
-                      busy={busyId === tournament.id}
-                      onBusyChange={(busy) => setBusyId(busy ? tournament.id : null)}
+                      busy={isBusy(tournament.id)}
+                      onBusyChange={(busy) => setBusy(tournament.id, busy)}
                       onError={(message) => {
                         setError(message);
                         if (message === null) setNotice(null);
