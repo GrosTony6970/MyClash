@@ -5272,7 +5272,7 @@ delete photos it knows nothing of.
 ## 28. MCP connector
 
 A person adds MyClash to Claude as a custom connector and asks Claude about their own account.
-Design and rulings 963–966 (calls A–F): `docs/superpowers/specs/2026-11-24-mcp-server-design.md`.
+Design and rulings 963–966 (calls A–F): `docs/superpowers/archive/specs/2026-11-24-mcp-server-design.md`.
 This section describes what slices 1 to 4 built: sign-in, and a door with twenty-eight tools.
 Twenty-three read (`whoami`, the nine of §28.5a, the twelve of §28.5b and the preview of §28.5c),
 and five write: the apply of §28.5c and the four draft tools of §28.5d.

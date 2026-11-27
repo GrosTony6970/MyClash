@@ -25,7 +25,7 @@ this case as the one where MCP is worth it: reaching production from the claude.
   "Approve". Works on claude.ai web, Claude mobile, Claude desktop and Claude Code.
 - Every tool runs as the signed-in person and sees exactly what that person sees in the app today.
 - Read tools for all four personas (slices 2–3); organiser write tools (slice 4, split in two by
-  ruling 989: 4a the referee swap and removal, built; 4b the drafts, not built).
+  ruling 989: 4a the referee swap and removal; 4b the drafts). All four slices are built.
 - Organiser writes are decided **per tool**: a small change applies after the person confirms in the
   chat; a big change becomes a draft the organiser approves in MyClash.
 
@@ -211,8 +211,19 @@ Operator rulings (2026-11-26), made when slice 4a was planned (its calls G–Q a
   name, read from the sign-in server.
 
 Slice 4a is built: `preview_referee_assignment` and `apply_referee_assignment`. ARCHITECTURE §28.5c
-describes what the code does, with the calls G–Q the plan made. Slice 4b is not built, so this spec
-stays in `specs/`.
+describes what the code does, with the calls G–Q the plan made.
+
+Slice 4b is built: `draft_tournament`, `draft_pools`, `draft_bracket` and `draft_match_schedule`,
+and the assistant page that opens one draft from a link. ARCHITECTURE §28.5d describes the tools,
+with the calls R–Z, and §26.4 the drafts and the page. Its rulings:
+
+- **991** — 4b is built on `feat/mcp-writes`, with 4a, before any merge.
+- **992** — the branch stays local until all the coding is done.
+- **993** — a draft shows in plain words only, with Apply and Reject; the JSON box and its Save go.
+- **994** — an applied or rejected draft cannot be edited, reopened or flipped.
+- **995** — one plain-words draft view, for the assistant page and the chat's proposal card.
+- **996** — a draft applies once: Apply claims it in one conditional step, and a second refuses.
+- **997** — a partly applied draft cannot be rejected: it stays `failed` and says so in words.
 
 - **Small, confirm-in-chat** (slice 4a, built) — v1: assign or swap a referee on a Match, or take
   the holder off (ruling 990). Path: the route's `MatchesService.setRefereeRoleAssignment` (`matches.service.ts:411-455`, replaces atomically), not
@@ -221,22 +232,24 @@ stays in `specs/`.
   and a short-lived confirmation token bound to the person and the exact payload, `confirm` included;
   `apply_<x>(token)` applies it (963). Tool annotations mark apply as destructive so Claude asks. The
   route writes no audit row, so the MCP tool writes one.
-- **Big, draft-in-app** (slice 4b, not built) — first, the assistant page opens one draft from a
+- **Big, draft-in-app** (slice 4b, built) — first, the assistant page opens one draft from a
   link and shows it in plain words (ruling 989). Then create a Tournament, generate Pools, generate
   a bracket, schedule Matches: one tool creates an `organizer_ai_assistant_drafts` row through the
   existing `createDraftFromAction` path and returns a link to the assistant page, where the
   organiser reviews and presses Apply.
 - Every write is audit-logged with the person as actor. `audit_log` has no source column, so the
-  payload names the source. In 4a the payload carries `via: 'mcp'`, `clientId` and `clientName`.
+  payload names the source. In 4a and 4b the payload carries `via: 'mcp'`, `clientId` and
+  `clientName`.
   `clientName` is the name the app gave itself at registration, read from GoTrue's admin client
   read (ruling 990). A failed read leaves it null.
 - No apply on a completed Event. `EventReadOnlyGuard` locks the route, not the service, so the tool
-  must reach the same lock. In 4a the tool reads the Event's status itself: a completed or archived
-  Event refuses.
+  must reach the same lock. Each write tool reads the Event's status itself: a completed or
+  archived Event refuses.
 - No write in read-only (maintenance) mode. The door passes that mode whole so the reads answer
   (ruling 985), so each write tool calls `assertNotReadOnly` itself. 4a changed the tool-list test
   in `mcp.http.test.ts`: only `apply_referee_assignment` may lack `readOnlyHint`, and it refuses in
-  maintenance without writing.
+  maintenance without writing. 4b added the four draft tools to that list, now in
+  `mcp.http.writes.test.ts`, and each refuses in maintenance the same way.
 
 ## Left to the builder
 
@@ -262,5 +275,8 @@ stays in `specs/`.
   other-person token refused; a replay refused; a rule-8 conflict refused through MCP by the
   same checker as the route, at preview and at apply; a completed Event refused; the audit row
   written, with the app's name.
-- **Slice 4b:** its own plan names its tests.
+- **Slice 4b (built):** per draft tool, each refusal (maintenance before any read, no Event, no
+  Tournament, not an org admin, an Event that is over, what Apply would refuse, a failed draft);
+  the saved draft's arguments asserted whole; no raw id in an answer but its link. Apply runs a
+  draft once and refuses a closed one (994, 996, 997).
 - **Every slice:** the `myclash-gates` chain green; `pnpm db:migrations:replay` if a migration lands.
