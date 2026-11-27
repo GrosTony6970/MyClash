@@ -297,6 +297,30 @@ describe('scoredMatchFormat — the scoring unit', () => {
     expect(scoredMatchFormat(stored, ruleset!).scoringUnit).toBe('points');
   });
 
+  it('keeps the stored countdown when it forces points', async () => {
+    const ruleset = await builtInResolver().resolve('Generic_PointsCap', '1.0.0');
+    const countdown = {
+      matchFormat: { scoringUnit: 'venues', scoringDirection: 'reverse_zero_loses' },
+    };
+
+    expect(scoredMatchFormat(countdown, ruleset!)).toMatchObject({
+      scoringUnit: 'points',
+      scoringDirection: 'reverse_zero_loses',
+    });
+  });
+
+  it('counts a venues bout up, whatever direction it stores', async () => {
+    const ruleset = await builtInResolver().resolve('TF_v1', '1.1.0');
+    const countdown = {
+      matchFormat: { scoringUnit: 'venues', scoringDirection: 'reverse_zero_loses' },
+    };
+
+    expect(scoredMatchFormat(countdown, ruleset!)).toMatchObject({
+      scoringUnit: 'venues',
+      scoringDirection: 'normal',
+    });
+  });
+
   it('keeps venues for a ruleset that offers them', async () => {
     const ruleset = await builtInResolver().resolve('TF_v1', '1.1.0');
 

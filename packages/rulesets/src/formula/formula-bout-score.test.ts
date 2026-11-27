@@ -71,4 +71,14 @@ describe('createFormulaRuleset — the bout score counts button values', () => {
     expect(score).toMatchObject({ redScore: 4 });
     expect(ruleset.isMatchOver(poolMatch, score, config).isOver).toBe(true);
   });
+
+  it('counts a venues bout up, whatever direction its Tournament stores', () => {
+    // A stored format keeps the organiser's countdown; a venues bout is read counting up.
+    const config = {
+      matchFormat: { scoringUnit: 'venues', scoringDirection: 'reverse_zero_loses', pointCap: 4 },
+    };
+    const score = ruleset.computeMatchScore(poolMatch, [deep('e1')], 'full', config);
+    expect(score).toMatchObject({ redScore: 1, blueScore: 0, redVenuesWon: 1 });
+    expect(ruleset.isMatchOver(poolMatch, score, config).isOver).toBe(false);
+  });
 });

@@ -113,6 +113,19 @@ describe('Generic_PointsCap', () => {
         reason: 'first_to_points',
       });
     });
+
+    it('counts down a format stored in venues mode that counts down', () => {
+      // In points, as it always scores, so its stored direction is the one it plays.
+      const countdown = (scoringUnit: 'points' | 'venues') => ({
+        matchFormat: { scoringUnit, pointCap: 4, scoringDirection: 'reverse_zero_loses' },
+      });
+      const exchanges = [makeEx({ id: 'e1', sequence: 1, firstStrikerColor: 'red' })];
+      const score = (unit: 'points' | 'venues') =>
+        Generic_PointsCap.computeMatchScore(BASE_MATCH, exchanges, 'full', countdown(unit));
+      expect(score('venues')).toEqual(score('points'));
+      // Red hit Blue once: Blue counts down from 4.
+      expect(score('venues')).toMatchObject({ redScore: 4, blueScore: 3 });
+    });
   });
 
   describe('the doubles ceiling, which this ruleset does not have', () => {

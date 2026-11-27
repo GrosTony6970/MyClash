@@ -77,8 +77,11 @@ New fields on `MatchFormatConfig`, mirroring the existing per-phase shape of `be
 In `venues` mode `pointCap` is not read (hidden in the editor). A venues bout always counts
 up: `normalizeMatchFormatConfig` resolves `scoringDirection` to `'normal'` when `scoringUnit`
 is `'venues'`, so every reader of a resolved format (the engine, the pad's `scoreOnPad`,
-`bout-flow.ts`) sees one answer, and the editors hide the direction select in venues mode. A
-write-time refusal was rejected: the API's `matchFormatSchema` is a partial PATCH shape and
+`bout-flow.ts`) sees one answer, and the editors hide the direction select in venues mode. The
+resolve happens at read only (`formatInForce`); a write stores the organiser's direction as set
+(`parseMatchFormatConfig`), so a countdown Tournament that tries venues and goes back to points
+counts down again, and a ruleset forced to points (`scoredMatchFormat`) plays its stored
+direction. A write-time refusal was rejected: the API's `matchFormatSchema` is a partial PATCH shape and
 `MatchFormatConfigSchema.shape` is read elsewhere, so neither can carry a cross-field refine.
 
 The field lives in the THREE places that must agree (see memory `reference_best_of_rounds`):

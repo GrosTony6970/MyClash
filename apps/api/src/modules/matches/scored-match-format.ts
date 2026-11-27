@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { normalizeMatchFormatConfig } from '@myclash/rulesets';
+import { formatInForce, parseMatchFormatConfig } from '@myclash/rulesets';
 import type { MatchFormatConfig, Ruleset } from '@myclash/rulesets';
 import type { RulesetResolver } from './ruleset-resolver.service';
 
@@ -41,9 +41,12 @@ export async function scoredRuleset(
  * The scoring unit goes the same way: a ruleset that does not offer venues
  * (`hasVenues === false`, `Generic_PointsCap`) is forced to `'points'`, or the
  * round lifecycle would close best-of rounds on venues over a points score.
+ *
+ * The format is put in force (`formatInForce`: a venues bout counts up) only AFTER those strips:
+ * a ruleset forced to points plays the direction its Tournament stores, as its engine does.
  */
 export function scoredMatchFormat(config: unknown, ruleset: Ruleset): MatchFormatConfig {
-  let matchFormat = normalizeMatchFormatConfig(
+  let matchFormat = parseMatchFormatConfig(
     (config as { matchFormat?: unknown } | null)?.matchFormat ?? {},
   );
   if (ruleset.metadata?.hasMaxDoubles === false) {
@@ -52,5 +55,5 @@ export function scoredMatchFormat(config: unknown, ruleset: Ruleset): MatchForma
   if (ruleset.metadata?.hasVenues === false) {
     matchFormat = { ...matchFormat, scoringUnit: 'points' };
   }
-  return matchFormat;
+  return formatInForce(matchFormat);
 }

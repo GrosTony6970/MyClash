@@ -14,7 +14,7 @@ import {
   DEFAULT_MATCH_FORMAT_CONFIG,
   MatchFormatConfigSchema,
   computeMatchFormatScore,
-  normalizeMatchFormatConfig,
+  parseMatchFormatConfig,
   pointCapEndsBout,
   EDITION_2026_04,
   EDITION_2026_10,
@@ -38,7 +38,7 @@ import type {
 
 export const GenericPointsCapConfigSchema = z.object({
   matchFormat: z
-    .preprocess((value) => normalizeMatchFormatConfig(value), MatchFormatConfigSchema)
+    .preprocess((value) => parseMatchFormatConfig(value), MatchFormatConfigSchema)
     .default(DEFAULT_MATCH_FORMAT_CONFIG),
   pointsCap: z.number().int().positive().optional(),
   timeLimitSeconds: z.number().int().positive().nullable().optional(),
@@ -58,7 +58,7 @@ export function normalizeGenericPointsCapConfig(config: unknown): GenericPointsC
   if (parsed.pointsCap !== undefined || parsed.timeLimitSeconds !== undefined) {
     return {
       ...parsed,
-      matchFormat: normalizeMatchFormatConfig({
+      matchFormat: parseMatchFormatConfig({
         ...parsed.matchFormat,
         pointCap: parsed.pointsCap ?? parsed.matchFormat.pointCap,
         timeLimitsSeconds:
@@ -97,8 +97,9 @@ function withoutMaxDoubles(config: GenericPointsCapConfig): GenericPointsCapConf
 }
 
 /**
- * The format this ruleset plays: in points, whatever unit it stores. Its scorer and its end both
- * read this, since the cap is never reached in venues mode (`isPointCapReached`).
+ * The format this ruleset plays: in points, whatever unit it stores, so in the direction it
+ * stores (a venues bout counts up only when read in venues: `formatInForce`). Its scorer and its
+ * end both read this, since the cap is never reached in venues mode (`isPointCapReached`).
  */
 const inPoints = (matchFormat: MatchFormatConfig): MatchFormatConfig => ({
   ...matchFormat,

@@ -13,7 +13,9 @@ import {
   getPointCapWinnerRegistrationId,
   isSoftClockLocked,
   MatchFormatConfigSchema,
+  formatInForce,
   normalizeMatchFormatConfig,
+  parseMatchFormatConfig,
   pointCapWinnerColor,
   roundWinTarget,
   EDITION_2026_10,
@@ -446,6 +448,12 @@ describe('venues scoring config', () => {
         scoringDirection: 'reverse_zero_loses',
       }).scoringDirection,
     ).toBe('reverse_zero_loses');
+  });
+
+  it('a stored format keeps its direction; only the read counts venues up', () => {
+    const stored = { scoringUnit: 'venues', scoringDirection: 'reverse_zero_loses' };
+    expect(parseMatchFormatConfig(stored).scoringDirection).toBe('reverse_zero_loses');
+    expect(formatInForce(parseMatchFormatConfig(stored)).scoringDirection).toBe('normal');
   });
 
   it('an old config resolves to points', () => {

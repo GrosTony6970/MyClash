@@ -256,7 +256,34 @@ type LegacyMatchFormatConfig = {
   maxDoubles?: number | null;
 };
 
+/**
+ * A match format as it is READ for use: its stored keys ({@link parseMatchFormatConfig}), in force
+ * ({@link formatInForce}). Every reader of a format asks this; a write stores the parse.
+ */
 export function normalizeMatchFormatConfig(input: unknown): MatchFormatConfig {
+  return formatInForce(parseMatchFormatConfig(input));
+}
+
+/**
+ * The format in force: a venues bout always counts up. Resolved at read, once, so every reader
+ * of a resolved format (the engine, the pad, the bout-flow chart) sees the one answer, and never
+ * stored: a countdown Tournament that tries venues and goes back to points counts down again.
+ * A write-time refusal cannot carry it either: the API's match-format schema is a partial PATCH
+ * shape, and a cross-field refine on this schema would break every reader of its `.shape`.
+ *
+ * Asked AFTER a ruleset's own strip (`scoredMatchFormat` in the API): a ruleset that forces
+ * points plays its stored direction.
+ */
+export function formatInForce(format: MatchFormatConfig): MatchFormatConfig {
+  return format.scoringUnit === 'venues' ? { ...format, scoringDirection: 'normal' } : format;
+}
+
+/**
+ * A match format as stored: validated, its legacy keys folded into the modern ones, and every
+ * key as the organiser set it. What a write stores; a reader asks
+ * {@link normalizeMatchFormatConfig}.
+ */
+export function parseMatchFormatConfig(input: unknown): MatchFormatConfig {
   if (!input || typeof input !== 'object') return DEFAULT_MATCH_FORMAT_CONFIG;
 
   const raw = input as Record<string, unknown> & LegacyMatchFormatConfig;
@@ -290,7 +317,7 @@ export function normalizeMatchFormatConfig(input: unknown): MatchFormatConfig {
       typeof raw.timeLimitSeconds === 'number' || raw.timeLimitSeconds === null
         ? raw.timeLimitSeconds
         : undefined;
-    const resolved = MatchFormatConfigSchema.parse({
+    return MatchFormatConfigSchema.parse({
       ...parsed,
       pointCap: typeof raw.firstToPoints === 'number' ? raw.firstToPoints : parsed.pointCap,
       timeLimitsSeconds:
@@ -306,15 +333,6 @@ export function normalizeMatchFormatConfig(input: unknown): MatchFormatConfig {
           ? raw.maxDoubles
           : parsed.maxDoubleHits,
     });
-    // A venues bout always counts up. Resolved here, once, so every reader of a
-    // resolved format (the engine, the pad, the bout-flow chart) sees the one
-    // answer. A write-time refusal cannot carry it: the API's match-format
-    // schema is a partial PATCH shape, and a cross-field refine on this schema
-    // would break every reader of its `.shape`. The legacy branch below needs no
-    // such line: a config with a venues key never reaches it, so it is points.
-    return resolved.scoringUnit === 'venues'
-      ? { ...resolved, scoringDirection: 'normal' }
-      : resolved;
   }
 
   const timeLimitSeconds =

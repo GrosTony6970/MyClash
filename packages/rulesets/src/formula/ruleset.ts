@@ -10,6 +10,7 @@ import { normalizeGenericPointsCapConfig } from '../generic_points_cap';
 import {
   computeMatchFormatScore,
   endOnPointCapOrMaxDoubles,
+  formatInForce,
   type AfterblowMode,
   type DecisionEdition,
 } from '../match-format';
@@ -149,7 +150,7 @@ export function createFormulaRuleset(
      */
     computeMatchScore(match, exchanges, afterblowMode, runtimeConfig) {
       const { matchFormat } = normalizeGenericPointsCapConfig(runtimeConfig);
-      return computeMatchFormatScore(match, exchanges, matchFormat, afterblowMode);
+      return computeMatchFormatScore(match, exchanges, formatInForce(matchFormat), afterblowMode);
     },
 
     /**
@@ -165,7 +166,7 @@ export function createFormulaRuleset(
       return endOnPointCapOrMaxDoubles(
         match,
         score,
-        normalizeGenericPointsCapConfig(runtimeConfig).matchFormat,
+        formatInForce(normalizeGenericPointsCapConfig(runtimeConfig).matchFormat),
         decisionEdition,
       );
     },

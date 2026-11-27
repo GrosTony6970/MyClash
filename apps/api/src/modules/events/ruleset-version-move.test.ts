@@ -87,6 +87,15 @@ describe('settingsAfterMove and seededScoringOfMove', () => {
     expect(coded['matchFormat']).toMatchObject({ pointCap: 7 });
   });
 
+  it('stores the countdown a venues Tournament starts with, as the organiser set it', () => {
+    // A venues bout counts up when it is read; the stored direction is kept for a move back.
+    const patch = {
+      matchFormat: { scoringUnit: 'venues', scoringDirection: 'reverse_zero_loses' },
+    };
+    const coded = settingsOfSeed({ code: 'TF_v1', kind: 'coded', seed: {}, patch });
+    expect(coded['matchFormat']).toMatchObject({ scoringDirection: 'reverse_zero_loses' });
+  });
+
   it("takes the seed's buttons and afterblow mode, and keeps the stored display", () => {
     const seed = {
       afterblowMode: 'full',
