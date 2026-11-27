@@ -1393,7 +1393,7 @@ through every surface that reads it, on a real Match of its own published
 | API      | a bout not started refuses (409 `bout_not_started`); a stranger refuses (400); a void sticks, once   |
 | pad      | the chip reads `2/2`, a voided protest does not count, and the tap past the limit offers the penalty |
 | TV       | the display shows the same `3/2` and `0/2`                                                           |
-| history  | the public Match history has one "Protest" row per live protest, and none of them carries a number   |
+| history  | the public Match history has one "Protest N" row per live protest, N its count, and none has a `#N`  |
 
 - **The server never enforces the limit.** A protest past it is saved like any
   other; the limit is the pad's, which offers the card. The spec declines the

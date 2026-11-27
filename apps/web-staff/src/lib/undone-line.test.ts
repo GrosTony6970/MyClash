@@ -101,8 +101,8 @@ describe('entryLine', () => {
     );
   });
 
-  // A protest has no number in the bout's list, so its line is a sentence of its own.
-  it('names a protest by its fighter, with no number, and the hits keep theirs', () => {
+  // A protest has no #N in the bout's list: its line names it as its row does, by the Fighter's count.
+  it('names a protest by its fighter and its count, and the hits keep their numbers', () => {
     const protest: MatchProtest = {
       id: 'protest-1',
       client_uuid: 'uuid-protest-1',
@@ -117,11 +117,37 @@ describe('entryLine', () => {
     const scoring = { ...screen.scoring, activeProtests: [protest] };
     const taken = { id: 'protest-1', clientUuid: 'uuid-protest-1' };
 
-    expect(entryLine(taken, { ...screen, scoring })).toBe('Protest by Bo Blue');
-    expect(entryLine(taken, { ...screen, scoring, t: fr })).toBe('Réclamation de Bo Blue');
+    expect(entryLine(taken, { ...screen, scoring })).toBe('Protest 1 by Bo Blue');
+    expect(entryLine(taken, { ...screen, scoring, t: fr })).toBe('Réclamation 1 de Bo Blue');
     expect(entryLine({ id: 'ex-2', clientUuid: 'uuid-ex-2' }, { ...screen, scoring })).toBe(
       '#2 · 00:02 · Bo Blue · Clean hit +1',
     );
+  });
+
+  // Two protests by one Fighter on a stopped clock: the line says which one the undo took.
+  it("names which of the Fighter's protests the undo took", () => {
+    const protest = (id: string, sequence: number, at: string): MatchProtest => ({
+      id,
+      client_uuid: `uuid-${id}`,
+      match_id: 'bout-1',
+      registration_id: 'reg-blue',
+      sequence,
+      round_number: 1,
+      clock_time_ms: 1500,
+      occurred_at: at,
+      voided: false,
+    });
+    const scoring = {
+      ...screen.scoring,
+      activeProtests: [
+        protest('protest-1', 1, '2026-10-11T10:01:30.000Z'),
+        protest('protest-2', 2, '2026-10-11T10:01:34.000Z'),
+      ],
+    };
+
+    expect(
+      entryLine({ id: 'protest-2', clientUuid: 'uuid-protest-2' }, { ...screen, scoring }),
+    ).toBe('Protest 2 by Bo Blue');
   });
 
   it('names a protest that waits on the tablet by the tablet’s id', () => {
@@ -140,7 +166,7 @@ describe('entryLine', () => {
     const scoring = { ...screen.scoring, pendingProtests: [waits] };
 
     expect(entryLine({ clientUuid: 'uuid-protest-2' }, { ...screen, scoring })).toBe(
-      'Protest by Ana Red',
+      'Protest 1 by Ana Red',
     );
   });
 

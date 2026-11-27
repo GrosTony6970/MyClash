@@ -228,10 +228,13 @@ test.describe('protests', () => {
       waitUntil: 'domcontentloaded',
     });
     const history = page.getByRole('list', { name: 'Exchange history' });
-    await expect(history.getByText('Protest', { exact: true })).toHaveCount(LIMIT + 1, {
-      timeout: 30_000,
-    });
-    // A protest is a row of the history with no number: the numbering belongs
+    // One Fighter's protests, each named by its count: "Protest 1" … "Protest 3".
+    for (let n = 1; n <= LIMIT + 1; n++) {
+      await expect(history.getByText(`Protest ${n}`, { exact: true })).toHaveCount(1, {
+        timeout: 30_000,
+      });
+    }
+    // A protest is a row of the history with no #N: that numbering belongs
     // to hits and cards, and this bout has none.
     await expect(history.locator('li[data-event-number]')).toHaveCount(0);
   });

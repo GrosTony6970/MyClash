@@ -309,6 +309,82 @@ describe('buildUnifiedTimeline', () => {
       expect(label).not.toContain('#');
       expect(label).toBe('00:12 · Blue Fighter · scoring.lice.eventRowProtest');
     });
+
+    /**
+     * On a stopped clock, two protests by one Fighter were two identical rows: same time, same
+     * name, same word. An undo took the newest, and the list looked as if the older one went.
+     * Each row now says which of the Fighter's protests it is.
+     */
+    describe("is numbered among its Fighter's protests", () => {
+      // A `t` that writes the number, so the test reads it and not only the key.
+      const tn = (k: string, p?: Record<string, string>) => (p?.['n'] ? `${k} ${p['n']}` : k);
+      const red = (over: Parameters<typeof pro>[0]) => pro({ registration_id: 'reg-red', ...over });
+      const numbered = (rows: ReturnType<typeof buildUnifiedTimeline>) =>
+        rows.filter((e) => e.kind === 'protest').map((e) => `${e.rawId}:${e.typeLabel}`);
+
+      it("counts each Fighter's protests apart, in the list's order", () => {
+        const out = buildUnifiedTimeline({
+          ...base,
+          t: tn,
+          exchanges: [ex({ id: 'e1', sequence: 1 }), ex({ id: 'e2', sequence: 2 })],
+          penalties: [],
+          // Given out of order: the number follows the time, not the array.
+          protests: [
+            pro({ id: 'b1', sequence: 5, occurred_at: '2027-06-21T10:02:40.000Z' }),
+            red({ id: 'r2', sequence: 4, occurred_at: '2027-06-21T10:02:30.000Z' }),
+            red({ id: 'r1', sequence: 3, occurred_at: '2027-06-21T10:01:30.000Z' }),
+          ],
+        });
+        expect(numbered(out)).toEqual([
+          'b1:scoring.lice.eventRowProtest 1',
+          'r2:scoring.lice.eventRowProtest 2',
+          'r1:scoring.lice.eventRowProtest 1',
+        ]);
+        // The hits keep their own #N.
+        expect(out.filter((e) => e.kind === 'exchange').map((e) => e.number)).toEqual([2, 1]);
+      });
+
+      it('numbers two protests of one moment by their sequence', () => {
+        const at = '2027-06-21T10:02:00.000Z';
+        const out = buildUnifiedTimeline({
+          ...base,
+          t: tn,
+          exchanges: [],
+          penalties: [],
+          protests: [
+            red({ id: 'late', sequence: 7, occurred_at: at }),
+            red({ id: 'early', sequence: 6, occurred_at: at }),
+          ],
+        });
+        expect(numbered(out)).toEqual([
+          'late:scoring.lice.eventRowProtest 2',
+          'early:scoring.lice.eventRowProtest 1',
+        ]);
+      });
+
+      it('skips a voided protest, and counts one waiting on the tablet', () => {
+        const out = buildUnifiedTimeline({
+          ...base,
+          t: tn,
+          exchanges: [],
+          penalties: [],
+          protests: [
+            red({ id: 'gone', sequence: 1, occurred_at: '2027-06-21T10:01:00.000Z', voided: true }),
+            red({ id: 'kept', sequence: 2, occurred_at: '2027-06-21T10:02:00.000Z' }),
+            red({
+              id: 'queued',
+              sequence: 3,
+              occurred_at: '2027-06-21T10:03:00.000Z',
+              pending: true,
+            }),
+          ],
+        });
+        expect(numbered(out)).toEqual([
+          'queued:scoring.lice.eventRowProtest 2',
+          'kept:scoring.lice.eventRowProtest 1',
+        ]);
+      });
+    });
   });
 });
 

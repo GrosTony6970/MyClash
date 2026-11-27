@@ -5,8 +5,9 @@
  * (clean / afterblow incl. net-zero 1-1 / double / no-exchange) and penalties
  * (cards) are merged, ordered chronologically, and numbered contiguously 1..N.
  * Cards therefore count as exchanges; a net-zero afterblow stays visible +
- * numbered. Protests take their place in the same order with NO number, so
- * they never move the `#N` of a hit or a card.
+ * numbered. Protests take their place in the same order with NO `#N`, so
+ * they never move the `#N` of a hit or a card; each says instead which of its
+ * Fighter's protests it is ("Protest 2").
  *
  * Voided rows are filtered HERE, not by callers: numbering them would desync
  * the `#`s between surfaces, which is the one invariant this module exists to
@@ -34,7 +35,8 @@ export interface UnifiedEvent {
   /**
    * Contiguous 1..N display number, assigned across the hits and cards. Null
    * for a protest: it takes its place in time but no number, so hit #5 is
-   * hit #5 with or without a protest before it.
+   * hit #5 with or without a protest before it. Its own count per Fighter is
+   * in its `typeLabel`.
    */
   number: number | null;
   occurredAt: string;
@@ -276,15 +278,28 @@ export function buildUnifiedTimeline({
   // Hits and cards are numbered alone, exactly as before; a protest then takes
   // its place by the same order, with no number of its own.
   const numbered: UnifiedEvent[] = ascendingWithNumbers([...exchangeRows, ...penaltyRows]);
+  // Each Fighter's protests are counted apart, in the list's own order: "Protest 2" is the
+  // Fighter's second, as the chip's count says.
+  const perFighter = new Map<string, number>();
   const protestRows = protests
     .filter((p) => !p.voided)
-    .map((p) => protestRow(p, { redName, blueName, redRegId, blueRegId, t, config }));
+    .map((p) => ({ p, occurredAt: p.occurred_at, seq: p.sequence }))
+    .sort(byTimeThenSeq)
+    .map(({ p }) => {
+      const n = (perFighter.get(p.registration_id) ?? 0) + 1;
+      perFighter.set(p.registration_id, n);
+      return protestRow(p, n, { redName, blueName, redRegId, blueRegId, t, config });
+    });
   return [...numbered, ...protestRows].sort(byTimeThenSeq).reverse();
 }
 
-/** A protest as a row: the fighter, the word, an icon. No points and no number. */
+/**
+ * A protest as a row: the fighter, the word with the Fighter's own count (`n`), an icon. No
+ * points and no `#N`.
+ */
 function protestRow(
   p: MatchProtest,
+  n: number,
   a: Omit<BuildTimelineArgs, 'exchanges' | 'penalties' | 'protests'>,
 ): UnifiedEvent {
   const side: 'red' | 'blue' | null =
@@ -300,7 +315,7 @@ function protestRow(
     side,
     sideColor: side ? sideStyle(a.config, side).border : null,
     fighterLabel: side === 'red' ? a.redName : side === 'blue' ? a.blueName : '—',
-    typeLabel: a.t('scoring.lice.eventRowProtest'),
+    typeLabel: a.t('scoring.lice.eventRowProtest', { n: String(n) }),
     // No glyph: `MatchTimeline` draws the protest's hand as an SVG, by `kind`.
     icon: null,
     card: null,
