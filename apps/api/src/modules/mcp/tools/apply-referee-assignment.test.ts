@@ -195,6 +195,35 @@ describe('apply_referee_assignment writes', () => {
   });
 });
 
+describe('apply_referee_assignment, two applies of one Event at once', () => {
+  // Each judging before the other's write lands, both would pass: one referee on two Matches
+  // that overlap. The second rechecks only once the first's write settled.
+  it('rechecks the second only after the first wrote', async () => {
+    let land!: () => void;
+    setRefereeRoleAssignment.mockImplementationOnce(
+      () =>
+        new Promise<void>((ok) => {
+          land = () => {
+            world.crew = [crewRow(PAUL, DECLARANT, 'match')];
+            ok();
+          };
+        }),
+    );
+    const first = apply(seal());
+    const second = apply(seal());
+    await vi.waitFor(() => expect(setRefereeRoleAssignment).toHaveBeenCalledTimes(1));
+    await new Promise((ok) => setTimeout(ok, 0));
+    expect(calls.filter((c) => c.select === CREW_SELECT)).toHaveLength(1);
+    expect(judgeVerdict).toHaveBeenCalledTimes(1);
+    land();
+    expect(await first).toMatchObject({ result: 'Done' });
+    // The second judges a crew that holds the first's write.
+    expect(await second).toEqual({ refusal: CHANGED });
+    expect(calls.filter((c) => c.select === CREW_SELECT)).toHaveLength(2);
+    expect(setRefereeRoleAssignment).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('apply_referee_assignment names the app', () => {
   it('as null when the auth server does not know the client, with a warning', async () => {
     const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);

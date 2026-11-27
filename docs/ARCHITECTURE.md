@@ -5556,7 +5556,7 @@ confirmation is sealed, and everything else is a name or a code.
 10. The answer, the two fighters' names (`vw_tournament_query_matches`; a failed read throws) and
     the sealed confirmation (call G).
 
-**The apply, in order** (`apply-referee-assignment.ts:194-227`):
+**The apply, in order** (`apply-referee-assignment.ts:200-237`):
 
 1. Maintenance first, before the token is opened or anything is read.
 2. No confirmation key → the tool throws.
@@ -5567,7 +5567,9 @@ confirmation is sealed, and everything else is a name or a code.
 5. The write gate again: maintenance, the organiser bar, an Event that is over, the board lock.
 6. The app's name (call L).
 7. The role by the token's skill id. A role that is gone gives the bad-token refusal.
-8. The recheck (`recheck`, `apply-referee-assignment.ts:110-142`), on a new crew read. The holder
+   Steps 8 and 9 run one apply at a time per Event (`runOnePerEvent`,
+   `tools/one-write-per-event.ts`); see "Two applies of one Event at once" below.
+8. The recheck (`recheck`, `apply-referee-assignment.ts:116-148`), on a new crew read. The holder
    must still be the token's `prev` (call H). A removal: the holder must still be a Match-level row
    (call M). A swap: the new referee must still be on the Event's referee roster and still hold the
    role's skill, and the checker judges again. A new holder, a holder no longer at Match level, or
@@ -5676,17 +5678,29 @@ The races, named:
   app between the crew re-read and the write is overwritten, and the audit row's
   `previousPersonId` names the holder the re-read saw. The window is a few database reads: the
   roster, the checker, and the write's own lock and checker reads. The app's name is the one call
-  to GoTrue (the sign-in server). It is read before the re-read. So no call to GoTrue sits between
-  the re-read and the write, only database reads (`apply-referee-assignment.ts:10-16,210-212`).
-  Accepted.
-- **Two applies of one token at once.** Both pass the `prev` check, and both write the same
-  person in the same role. The two RPC calls are not serialised, and `referee_assignments` has no
-  unique index on Match and role. So both inserts can survive, and the Match then has two
-  identical rows. The same person holds the role either way. The app's crew screens show them once
-  (`uniqueReferees`, by name and role). Claude's preview does not: it lists the crew from
-  `winningAssignmentRows` with no dedupe, so a later preview names that referee twice. The next
-  per-Match write of that role deletes both rows. The board's Assign does not: it writes Pool rows
-  through `persistAssignments` and leaves the Match rows. Two audit rows are written. Accepted.
+  to GoTrue (the sign-in server). It is read before the re-read and before the per-Event lock. So
+  no call to GoTrue sits between the re-read and the write, only database reads, and no apply of
+  the Event waits on GoTrue (`apply-referee-assignment.ts:15-21,216-219`). Accepted.
+- **Two applies of one Event at once.** Marie says "put Paul on LSW-P2-M04 and on LSW-P3-M01".
+  The two Matches overlap on two pistes. Claude previews both (each is Fine: neither is written
+  yet), and calls apply twice in one turn. Each apply's recheck, and each write's own `judgeWrite`,
+  would run before the other's RPC lands. `replace_match_referee_role` (migration 0207) takes no
+  lock. So both would pass, and Paul would referee two Matches at once: a hard rule-8 breach.
+  Fixed: the recheck and the write run one apply at a time per Event (`runOnePerEvent`,
+  `tools/one-write-per-event.ts`, a promise chain keyed by the Event id). The second apply
+  rechecks only once the first write settled, so its checker sees the first duty and refuses.
+  Different Events do not wait. The lock lives in the API process. Production runs one `api`
+  container (`infra/docker-compose.prod.yml`, no replicas). A second API process would need a
+  shared lock: a Postgres advisory lock on the Event id, taken in the same transaction as the
+  judge and the write. The app's doors take no such lock (ADR-016, "The contract at the doors").
+- **Two applies of one token at once.** The lock runs them one after the other. The first
+  writes; the second's recheck finds the new holder, not `prev`, and refuses (call H). With a
+  second API process and no shared lock, both could pass the `prev` check and write the same
+  person in the same role. `referee_assignments` has no unique index on Match and role, so the
+  Match would then have two identical rows. The app's crew screens show them once
+  (`uniqueReferees`, by name and role); Claude's preview lists the crew from
+  `winningAssignmentRows` with no dedupe and would name that referee twice. The next per-Match
+  write of that role deletes both rows.
 
 ### 28.6 Connected apps
 

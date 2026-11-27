@@ -130,6 +130,12 @@ slate, with its own switch, and it never blocks.
     (`confirmedReasons`).
   - An Impossible refusal and a Discouraged one both answer 409, with `level` and the reasons
     in the body (ruling 22). A missing skill is not a scheduling rule and stays a 400.
+  - Every door judges, then writes, and holds no lock between the two. So two writes at once, at
+    two doors or twice at one door, can each pass the checker before the other lands: one
+    referee on two Matches that overlap. The MCP door runs its own applies one at a time per
+    Event, inside the API process (ARCHITECTURE §28.5c, "Two applies of one Event at once"). The
+    app's doors do not. Named, not fixed: the full fix is the judge inside the write's
+    transaction, under a Postgres advisory lock on the Event.
 - **Locked** = any confirmed Pool or bout assignment in the Event; every door that writes an assignment
   answers 409 while it is locked (ADR-019). The lock itself refuses while a duty is
   Impossible, unless the organiser sends anyway over exactly the duties it listed (ruling 138). Deleting a bout or a Pool is not a referee

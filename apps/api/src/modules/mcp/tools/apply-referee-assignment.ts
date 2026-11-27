@@ -7,10 +7,15 @@
  * apply. The holder must still be the one the preview saw (call H), and a warning the person
  * did not see refuses (call I). A replay of the token meets the new holder and refuses.
  *
+ * The race it closes: two applies of one Event at once (two Matches that overlap, one referee).
+ * Each would judge before the other's write lands, and both would pass. The recheck and the
+ * write run one apply at a time per Event (`runOnePerEvent`, in this process only), so the
+ * second judges a crew that holds the first's write.
+ *
  * The race it accepts: the write does not compare the holder again. A change made in the app
  * between the crew re-read and the write is overwritten, and the audit row's `previousPersonId`
  * names the holder the re-read saw. The window is the roster read, the checker and the write's
- * own lock and checker reads, all database reads of milliseconds: the app name, the one call to
+ * own board-lock and checker reads, all database reads of milliseconds: the app name, the one call to
  * the auth server, is read before the re-read so it cannot stretch the window. The write still
  * refuses an Impossible reason born in it; a Discouraged one only when the preview showed none
  * (`confirm` false), as the plan's "race, named" accepts.
@@ -20,6 +25,7 @@ import type { RefereeReason } from '@myclash/rulesets/scheduling/referee-checker
 import { insertAuditLog } from '../../../common/audit-log';
 import type { McpCaller, McpToolDeps } from '../mcp-server';
 import { isRefusal, type McpRefusal } from './mcp-answer';
+import { runOnePerEvent } from './one-write-per-event';
 import {
   eventSkills,
   holderOf,
@@ -207,15 +213,19 @@ export async function applyRefereeAssignment(
   const { event, match } = read;
   const gate = await refereeWriteRefusal(event, caller, deps);
   if (gate) return gate;
-  // Before the recheck: this call goes to the auth server, with no timeout of ours. Between
-  // the crew re-read and the write there is no call to the auth server, only database reads.
+  // Before the recheck and the lock: this call goes to the auth server, with no timeout of
+  // ours. Between the crew re-read and the write there is no call to the auth server, only
+  // database reads, so no apply of the Event waits on the auth server.
   const clientName = await appName(deps, caller.clientId);
   const skill = (await eventSkills(deps, event.id)).find((s) => s.id === token.role);
   if (!skill) return STALE;
-  const checked = await recheck(deps, caller, token, event, { match, skill });
+  // One recheck-and-write at a time per Event: a second apply judges after the first wrote.
+  const checked = await runOnePerEvent(event.id, async () => {
+    const seen = await recheck(deps, caller, token, event, { match, skill });
+    if (isRefusal(seen)) return seen;
+    return (await write(deps, token, { match, skill }, seen.person)) ?? seen;
+  });
   if (isRefusal(checked)) return checked;
-  const refused = await write(deps, token, { match, skill }, checked.person);
-  if (refused) return refused;
   await audit(deps, caller, token, clientName);
   return {
     result: 'Done',
