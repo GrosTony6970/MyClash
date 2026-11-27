@@ -98,6 +98,9 @@ export { BUILT_IN_RULESETS } from './built-ins';
 export { TF_v1, TF_v1_1_0_0 } from './tf_v1';
 export { TFv1ConfigSchema, TFv1DefaultConfig } from './tf_v1/config';
 export type { TFv1Config } from './tf_v1/config';
+// TF_v1 as a club formula ruleset: what a copy of TF_v1 starts from.
+export { tfV1AsFormula } from './tf_v1/as-formula';
+export type { TfV1AsFormula } from './tf_v1/as-formula';
 // Named targets — the grammar half of a ruleset. Exported so the API validates
 // authored targets against the same schema the engine parses.
 export {
