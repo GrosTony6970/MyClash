@@ -1,11 +1,43 @@
 import { describe, expect, it } from 'vitest';
 import {
   aggregateReferee,
+  fightGroup,
   fightHeaderEnd,
   partitionAtBars,
   refereeAssignmentKey,
 } from './schedule-model';
 import type { RefereeSlot } from './types';
+
+describe('fightGroup', () => {
+  // Saturday's Pool bouts and Sunday's elimination bout of one Tournament both read
+  // "Longsword Open" (operator, 2026-11-27).
+  const WORDS: Record<string, string> = {
+    'publicApp.me.schedule.poolsBlock': 'Pools',
+    'publicApp.me.schedule.eliminationBlock': 'Elimination',
+    'publicApp.me.hub.kindSwiss': 'Swiss',
+    'publicApp.me.hub.competing': 'Competing',
+  };
+  const t = (key: string) => WORDS[key] ?? `[${key}]`;
+  const open = (phase: 'pool' | 'bracket' | 'swiss' | null) => ({
+    tournamentName: 'Longsword Open',
+    phase,
+  });
+
+  it('names the phase in the title, and puts each phase in its own group', () => {
+    const groups = (['pool', 'bracket', 'swiss'] as const).map((p) => fightGroup(open(p), t));
+    expect(groups.map((g) => g.title)).toEqual([
+      'Longsword Open · Pools',
+      'Longsword Open · Elimination',
+      'Longsword Open · Swiss',
+    ]);
+    expect(new Set(groups.map((g) => g.key)).size).toBe(3);
+  });
+
+  it('keeps the bare Tournament title for a bout with no phase', () => {
+    expect(fightGroup(open(null), t).title).toBe('Longsword Open');
+    expect(fightGroup({ tournamentName: null, phase: null }, t).title).toBe('Competing');
+  });
+});
 
 function slot(over: Partial<RefereeSlot>): RefereeSlot {
   return {

@@ -24,6 +24,7 @@ import { ScheduleUpdatedBadge } from './ScheduleUpdatedBadge';
 import { boutPageHref } from '@/lib/bout-page';
 import {
   aggregateReferee,
+  fightGroup,
   fightHeaderEnd,
   partitionAtBars,
   type RefereeAggregate,
@@ -248,13 +249,13 @@ export function ScheduleView({
   }
 
   function groupKeyOf(item: DisplayItem): string {
-    if (item.kind === 'fight') return `f:${item.data.tournamentName ?? ''}`;
+    if (item.kind === 'fight') return fightGroup(item.data, t).key;
     if (item.kind === 'referee') return `r:${item.data.tournamentName ?? ''}`;
     return 'w';
   }
 
   function groupTitle(item: DisplayItem): string {
-    if (item.kind === 'fight') return item.data.tournamentName ?? t('publicApp.me.hub.competing');
+    if (item.kind === 'fight') return fightGroup(item.data, t).title;
     if (item.kind === 'referee')
       return t('publicApp.me.schedule.refereeingGroup', {
         tournament: item.data.tournamentName ?? '',

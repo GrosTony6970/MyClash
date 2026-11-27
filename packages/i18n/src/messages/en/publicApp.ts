@@ -516,6 +516,8 @@ export const publicApp = {
       referee: 'Referee',
       /** A fighter's elimination bracket, as a clash names it: "Elimination · Longsword Open". */
       eliminationBlock: 'Elimination',
+      /** A fighter's Pool phase, as a schedule group names it: "Longsword Open · Pools". */
+      poolsBlock: 'Pools',
       conflictsWith: 'Conflicts with: {items}',
       live: 'Live',
       won: 'Won {a}–{b}',

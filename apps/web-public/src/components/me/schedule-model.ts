@@ -3,8 +3,26 @@
 // slots into one card per assignment, and splitting a day into segments at
 // programme-break boundaries — are unit-testable in isolation.
 
-import { fightWindow } from './conflicts';
+import { fightWindow, phaseWord } from './conflicts';
 import type { RefereeSlot, ScheduleMatch } from './types';
+
+/**
+ * The schedule group a fighter's bout falls in, and its title: one per Tournament AND phase,
+ * "Longsword Open · Pools", "Longsword Open · Elimination" (operator, 2026-11-27). Two groups
+ * of one Tournament both read "Longsword Open" before. A bout with no phase (a copy cached
+ * before the API sent it) keeps the bare Tournament title.
+ */
+export function fightGroup(
+  match: Pick<ScheduleMatch, 'tournamentName' | 'phase'>,
+  t: (key: string) => string,
+): { key: string; title: string } {
+  const tournament = match.tournamentName ?? t('publicApp.me.hub.competing');
+  const phase = match.phase ? phaseWord(t, match.phase) : null;
+  return {
+    key: `f:${match.tournamentName ?? ''}:${match.phase ?? ''}`,
+    title: phase ? `${tournament} · ${phase}` : tournament,
+  };
+}
 
 /** One referee card per pool / bracket-tier assignment (the many per-match
  *  referee_assignments folded together with a match count + time window). */

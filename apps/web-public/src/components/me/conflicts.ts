@@ -159,8 +159,12 @@ function blockKeyOf(match: Bout): string | undefined {
   return undefined;
 }
 
-/** "Elimination" or "Swiss": the name of a phase block, in the reader's language. */
-function phaseWord(t: Words, kind: 'bracket' | 'swiss'): string {
+/**
+ * "Pools", "Elimination" or "Swiss": the name of a phase, in the reader's language. A clash
+ * names a Pool by its own name; the schedule's group titles use all three.
+ */
+export function phaseWord(t: Words, kind: 'pool' | 'bracket' | 'swiss'): string {
+  if (kind === 'pool') return t('publicApp.me.schedule.poolsBlock');
   return kind === 'bracket'
     ? t('publicApp.me.schedule.eliminationBlock')
     : t('publicApp.me.hub.kindSwiss');

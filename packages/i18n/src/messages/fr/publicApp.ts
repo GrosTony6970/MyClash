@@ -513,6 +513,7 @@ export const publicApp = {
       vs: 'vs',
       referee: 'Arbitre',
       eliminationBlock: 'Élimination',
+      poolsBlock: 'Poules',
       conflictsWith: 'En conflit avec : {items}',
       live: 'En direct',
       won: 'Gagné {a}–{b}',
