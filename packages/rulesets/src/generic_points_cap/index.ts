@@ -95,20 +95,10 @@ function withoutMaxDoubles(config: GenericPointsCapConfig): GenericPointsCapConf
 }
 
 /**
- * The scoring half, honouring whatever ceiling the config carries.
- *
- * Exported for `createFormulaRuleset`, which reuses this ruleset's hit remapping
- * but keeps its doubles ceiling. `Generic_PointsCap.computeMatchScore` calls it
- * through {@link withoutMaxDoubles}.
+ * Every hit is worth the one fixed `pointValues.hit`, and an afterblow counts as
+ * a clean hit. A club formula ruleset no longer scores this way: it counts the
+ * button's value (ruling 2026-11-27).
  */
-export function computeGenericPointsCapScore(
-  match: Pick<Match, 'phaseType'>,
-  exchanges: Exchange[],
-  config: unknown,
-): MatchScore {
-  return computeScore(match, exchanges, normalizeGenericPointsCapConfig(config));
-}
-
 function computeScore(
   match: Pick<Match, 'phaseType'>,
   exchanges: Exchange[],

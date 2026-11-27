@@ -708,7 +708,9 @@ Named while the countdown was built, and not fixed (each one checked in code by 
 - The server's own comment says a tablet with no network cannot have moved past a round
   (`apps/api/src/modules/penalties/penalties.service.ts:987-991`). That is no longer true.
 - `Generic_PointsCap` and a club's formula ruleset give every hit one fixed value on the server;
-  the tablet adds the value of the button. The tablet predicts, the server decides.
+  the tablet adds the value of the button. The tablet predicts, the server decides. **Fixed for a
+  club's formula ruleset on 2026-11-27**: its server counts the button's value and nets an
+  afterblow by the mode. `Generic_PointsCap` keeps its one fixed value.
 
 **The bouts not yet started take their Tournament's ruleset: `e3316812`** (2026-10-11). When an
 organiser changes a Tournament's ruleset (the Tournament form, the audited change during an

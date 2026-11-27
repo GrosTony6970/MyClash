@@ -39,8 +39,8 @@ export const countsDown = (args: PadSeriesArgs) =>
  *
  * Read wrong, named: the list of hits is older than the row (its read failed).
  * A real 0-0 then reads cap to cap until the list lands. And the list is added
- * up as the tablet adds a hit (`provisionalDeltas`): a ruleset that gives every
- * hit one fixed value counts another way, and the server decides.
+ * up as the tablet adds a hit (`provisionalDeltas`): Generic_PointsCap, which
+ * gives every hit one fixed value, counts another way, and the server decides.
  */
 export function serverScore(args: PadSeriesArgs): ServerRounds | null {
   const { server, matchFormat } = args;

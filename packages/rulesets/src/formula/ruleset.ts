@@ -2,15 +2,13 @@
  * packages/rulesets/src/formula/ruleset.ts
  *
  * Factory that constructs a Ruleset plugin from a stored FormulaConfig
- * (score AST + constants + tiebreakers). Match-level scoring delegates to
- * Generic_PointsCap; only the standings/ranking path is custom — that's
- * where the formula lives.
+ * (score AST + constants + tiebreakers). The bout score is the shared match
+ * format's; the standings/ranking path is custom — that's where the formula
+ * lives.
  */
+import { normalizeGenericPointsCapConfig } from '../generic_points_cap';
 import {
-  computeGenericPointsCapScore,
-  normalizeGenericPointsCapConfig,
-} from '../generic_points_cap';
-import {
+  computeMatchFormatScore,
   endOnPointCapOrMaxDoubles,
   type AfterblowMode,
   type DecisionEdition,
@@ -139,14 +137,19 @@ export function createFormulaRuleset(
     version,
     displayName,
     decisionEdition,
-    computeMatchScore(match, exchanges, _afterblowMode, runtimeConfig) {
-      // Reuses Generic_PointsCap's hit remapping — it has no afterblow concept
-      // either, and the authored formula is the standings half, below.
-      //
-      // NOT `Generic_PointsCap.computeMatchScore`: that one strips the doubles
-      // ceiling, because Generic has no such rule. An org-authored ruleset KEEPS
-      // it, so this calls the scorer that honours the configured ceiling.
-      return computeGenericPointsCapScore(match, exchanges, runtimeConfig);
+    /**
+     * The bout score counts each hit at the value of the button pressed, and
+     * nets an afterblow by the Tournament's afterblow mode, as TF_v1 does and as
+     * the tablet already predicts (ruling 2026-11-27). It used to flatten every
+     * hit to Generic_PointsCap's one fixed value and drop the afterblow, so a
+     * deep hit worth 2 showed +2 on the tablet and counted +1 on the server.
+     *
+     * It keeps the configured doubles ceiling, which Generic_PointsCap strips:
+     * an org-authored ruleset has the rule.
+     */
+    computeMatchScore(match, exchanges, afterblowMode, runtimeConfig) {
+      const { matchFormat } = normalizeGenericPointsCapConfig(runtimeConfig);
+      return computeMatchFormatScore(match, exchanges, matchFormat, afterblowMode);
     },
 
     /**
