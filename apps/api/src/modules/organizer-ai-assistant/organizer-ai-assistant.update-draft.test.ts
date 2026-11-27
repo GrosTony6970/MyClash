@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mockSupabase, selectsFor, writesTo } from '../../common/testing/supabase-chain';
 import {
   mockGeneratePools,
@@ -45,6 +45,20 @@ function drafts(before: DraftState, then = before) {
 
 const refusal = (message: string) => ({ response: { code: 'draft_closed', message } });
 
+const PARTLY_APPLIED_REFUSAL = refusal(
+  'This draft was partly applied before it failed. It cannot be changed, applied again or rejected.',
+);
+
+/** The clock, pinned so a write's timestamps can be asserted whole. */
+const NOW = '2026-11-27T10:00:00.000Z';
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(NOW));
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 /**
  * Ruling 994. Marie applies a draft that generates 4 Pools. An edit of its actions used to make it
  * `ready` again, and a second Apply generated the Pools again. An applied or rejected draft is
@@ -87,7 +101,12 @@ describe('OrganizerAIAssistantService.updateDraft', () => {
 
     expect(draft.id).toBe('draft-1');
     const [update] = writesTo(write, DRAFTS);
-    expect(update?.row).toMatchObject({ status: 'rejected', rejected_by_user_id: 'user-1' });
+    expect(update?.row).toEqual({
+      updated_at: NOW,
+      status: 'rejected',
+      rejected_at: NOW,
+      rejected_by_user_id: 'user-1',
+    });
     expect(update?.filters).toEqual([
       { method: 'eq', args: ['id', 'draft-1'] },
       { method: 'eq', args: ['event_id', 'event-1'] },
@@ -128,7 +147,16 @@ describe('a draft whose Apply started and then failed', () => {
         proposedActions: ACTIONS,
         status: 'ready',
       }),
-    ).rejects.toMatchObject(refusal('This draft was partly applied before it failed.'));
+    ).rejects.toMatchObject(PARTLY_APPLIED_REFUSAL);
+    expect([...read.writes, ...write.writes]).toEqual([]);
+  });
+
+  it('refuses a reject: it stays failed (ruling 997), and nothing is written', async () => {
+    const { read, write } = drafts(PARTLY_APPLIED);
+
+    await expect(
+      service().updateDraft('event-1', 'draft-1', 'user-1', { status: 'rejected' }),
+    ).rejects.toMatchObject(PARTLY_APPLIED_REFUSAL);
     expect([...read.writes, ...write.writes]).toEqual([]);
   });
 
@@ -136,7 +164,7 @@ describe('a draft whose Apply started and then failed', () => {
     const { read, write } = drafts(PARTLY_APPLIED);
 
     await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toMatchObject(
-      refusal('This draft was partly applied before it failed.'),
+      PARTLY_APPLIED_REFUSAL,
     );
     expect(mockGeneratePools).not.toHaveBeenCalled();
     expect([...read.writes, ...write.writes]).toEqual([]);
@@ -164,6 +192,12 @@ describe('a draft whose Apply started and then failed', () => {
     });
 
     const [update] = writesTo(write, DRAFTS);
-    expect(update?.row).toMatchObject({ status: 'ready', proposed_actions_json: ACTIONS });
+    expect(update?.row).toEqual({
+      updated_at: NOW,
+      proposed_actions_json: ACTIONS,
+      validation_state: { ok: true, warnings: [], errors: [] },
+      status: 'ready',
+      error: null,
+    });
   });
 });

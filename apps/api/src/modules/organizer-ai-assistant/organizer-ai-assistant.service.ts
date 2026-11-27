@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { AIUsageService } from '../ai-usage/ai-usage.service';
@@ -39,12 +40,15 @@ function draftClosed(message: string): ConflictException {
  * Why a draft is closed, or null while it is open. A draft whose Apply started is closed too,
  * even when an action then failed: the claim set `applied_at`, the failure keeps it, and the
  * row reads `failed` ("Partially applied 1/2…"). Its first actions ran, so an edit back to
- * `ready` and a second Apply would run them again (the Tournament created twice). A draft that
- * failed the shape check never ran: it has no `applied_at` and stays open.
+ * `ready` and a second Apply would run them again (the Tournament created twice). It cannot be
+ * rejected either (ruling 997): it stays `failed`, and the page says it was partly applied. A
+ * draft that failed the shape check never ran: it has no `applied_at` and stays open.
  */
 function closedReason(draft: Pick<DraftRow, 'status' | 'applied_at'>): string | null {
   if (!OPEN_STATUSES.includes(draft.status)) return `This draft is already ${draft.status}.`;
-  if (draft.applied_at) return 'This draft was partly applied before it failed.';
+  if (draft.applied_at) {
+    return 'This draft was partly applied before it failed. It cannot be changed, applied again or rejected.';
+  }
   return null;
 }
 
@@ -94,6 +98,8 @@ const FEATURE = 'organizer_tournament_assistant';
 
 @Injectable()
 export class OrganizerAIAssistantService {
+  private readonly logger = new Logger(OrganizerAIAssistantService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly aiUsage: AIUsageService,
@@ -319,7 +325,7 @@ export class OrganizerAIAssistantService {
     } catch (err) {
       const applied = appliedResults.length;
       const message = err instanceof Error ? err.message : 'unknown error';
-      await this.supabase.service
+      const { error: markError } = await this.supabase.service
         .from('organizer_ai_assistant_drafts')
         .update({
           status: 'failed',
@@ -327,6 +333,10 @@ export class OrganizerAIAssistantService {
           updated_at: new Date().toISOString(),
         })
         .eq('id', draftId);
+      // Logged, never thrown: the action's own error is the one the organiser needs.
+      if (markError) {
+        this.logger.error(`Draft ${draftId} not marked failed: ${markError.message}`);
+      }
       await this.audit(actorUserId, eventId, 'event.ai_assistant_draft_apply_failed', draftId, {
         draftType: draft.draft_type,
         appliedCount: applied,
@@ -358,7 +368,9 @@ export class OrganizerAIAssistantService {
    *
    * The window: the status CHECK (0031) has no in-between value, so the claim writes `applied`
    * at once. From the claim until the last action ends, the row reads `applied` while its
-   * actions still run. A failed action turns it `failed` (`applyDraft`'s catch).
+   * actions still run. A failed action turns it `failed` (`applyDraft`'s catch). A crash leaves
+   * the row `applied` with no error: a process killed between the claim and the end, or a
+   * failure write that itself fails (logged in the catch). The draft stays closed either way.
    */
   private async claimDraft(draft: DraftRow, actorUserId: string) {
     const now = new Date().toISOString();

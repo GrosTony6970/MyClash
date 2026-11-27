@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { Logger } from '@nestjs/common';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mockSupabase } from '../../common/testing/supabase-chain';
 import {
   chain,
@@ -11,13 +12,22 @@ import {
 
 const DRAFTS = 'organizer_ai_assistant_drafts';
 
+/** The row a write was given, or undefined for a read. */
+const updateOf = (c: Chain) => c.update.mock.calls[0]?.[0] as Record<string, unknown> | undefined;
+
 /**
  * The drafts table as one stateful row, so two Applies race the way they do in the database. A
  * read answers the row as it is now. A write applies only when its `.eq` filters still match the
- * row, and answers `{ id }` when it did, `null` when it matched nothing. `afterRead` runs once,
- * after the first read: another tab's write landing between the Apply's read and its claim.
+ * row, and answers `{ id }` when it did, `null` when it matched nothing. A write awaited with no
+ * terminal (the failure mark) applies the same way, since the client's builder is thenable.
+ *
+ * `afterRead` runs once, after the first read: another tab's write landing between the Apply's
+ * read and its claim. `markFails` makes the failure mark answer that database error.
  */
-function oneDraft(afterRead?: (row: Record<string, unknown>) => void) {
+function oneDraft({
+  afterRead,
+  markFails,
+}: { afterRead?: (row: Record<string, unknown>) => void; markFails?: string } = {}) {
   const row: Record<string, unknown> = {
     id: 'draft-1',
     event_id: 'event-1',
@@ -29,6 +39,12 @@ function oneDraft(afterRead?: (row: Record<string, unknown>) => void) {
   };
   let pending = afterRead;
   const queries: Chain[] = [];
+  /** Applies `update` when the write's `.eq` filters still match the row; says whether it did. */
+  const write = (c: Chain, update: Record<string, unknown>) => {
+    const matches = c.eq.mock.calls.every(([column, value]) => row[column as string] === value);
+    if (matches) Object.assign(row, update);
+    return matches;
+  };
   const tournaments = mockSupabase({ tournaments: { rows: [{ id: 't-1', event_id: 'event-1' }] } });
   mockSupabaseFrom.mockImplementation((table: string) => {
     if (table === 'tournaments') return tournaments.from(table);
@@ -36,17 +52,20 @@ function oneDraft(afterRead?: (row: Record<string, unknown>) => void) {
     const c = chain();
     queries.push(c);
     c.maybeSingle.mockImplementation(async () => {
-      const update = c.update.mock.calls[0]?.[0] as Record<string, unknown> | undefined;
-      if (!update) {
-        const read = { ...row };
-        pending?.(row);
-        pending = undefined;
-        return { data: read, error: null };
-      }
-      const matches = c.eq.mock.calls.every(([column, value]) => row[column as string] === value);
-      if (!matches) return { data: null, error: null };
-      Object.assign(row, update);
-      return { data: { id: row['id'] }, error: null };
+      const update = updateOf(c);
+      if (update) return { data: write(c, update) ? { id: row['id'] } : null, error: null };
+      const read = { ...row };
+      pending?.(row);
+      pending = undefined;
+      return { data: read, error: null };
+    });
+    Object.assign(c, {
+      then: (resolve: (answer: unknown) => void) => {
+        const update = updateOf(c);
+        if (update && markFails) return resolve({ data: null, error: { message: markFails } });
+        if (update) write(c, update);
+        resolve({ data: null, error: null });
+      },
     });
     return c;
   });
@@ -117,11 +136,13 @@ describe('OrganizerAIAssistantService.applyDraft, twice at once', () => {
     // Tab B reads 4 Pools and presses Apply; tab A's edit to 6 Pools lands before B's claim.
     // The row is still `ready`, so only the `updated_at` the Apply read tells the two apart.
     mockGeneratePools.mockResolvedValue({ poolCount: 6 });
-    const { row } = oneDraft((stored) => {
-      stored['proposed_actions_json'] = [
-        { kind: 'generate_pools', tournamentId: 't-1', poolCount: 6 },
-      ];
-      stored['updated_at'] = '2026-11-27T09:00:01.000Z';
+    const { row } = oneDraft({
+      afterRead: (stored) => {
+        stored['proposed_actions_json'] = [
+          { kind: 'generate_pools', tournamentId: 't-1', poolCount: 6 },
+        ];
+        stored['updated_at'] = '2026-11-27T09:00:01.000Z';
+      },
     });
 
     await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toMatchObject({
@@ -144,8 +165,13 @@ describe('OrganizerAIAssistantService.applyDraft, twice at once', () => {
       'pool phase exists',
     );
 
-    expect(row['applied_at']).toEqual(expect.any(String));
-    const [, failure] = writes() as [Chain, Chain];
+    const [claim, failure] = writes() as [Chain, Chain];
+    // The failure mark landed on the row (the double applies it), and the claim's mark stayed.
+    expect(row).toMatchObject({
+      status: 'failed',
+      applied_at: updateOf(claim)?.['applied_at'],
+      applied_by_user_id: 'user-1',
+    });
     expect(failure.update.mock.calls).toEqual([
       [
         {
@@ -155,5 +181,20 @@ describe('OrganizerAIAssistantService.applyDraft, twice at once', () => {
         },
       ],
     ]);
+  });
+
+  it("logs a failure mark the database refused, and still throws the action's error", async () => {
+    const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    mockGeneratePools.mockRejectedValue(new Error('pool phase exists'));
+    const { row } = oneDraft({ markFails: 'connection reset' });
+
+    await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toThrow(
+      'pool phase exists',
+    );
+
+    expect(logged.mock.calls).toEqual([['Draft draft-1 not marked failed: connection reset']]);
+    // What a lost mark leaves (claimDraft's docstring): `applied`, no error, still closed.
+    expect(row['status']).toBe('applied');
+    logged.mockRestore();
   });
 });
