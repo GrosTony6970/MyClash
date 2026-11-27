@@ -1,7 +1,6 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
-import { useId } from 'react';
 
 // One owner for the option list, so the two surfaces cannot offer different
 // wording — or different values — for the same setting.
@@ -13,7 +12,7 @@ import {
 } from '../../../_shared/match-format-form';
 import { LevelAtTimeEditor, levelChainsAreValid } from '../../../new/_wizard/LevelAtTimeEditor';
 import { RulesFormState } from '../../../_shared/RulesFormState';
-import { startAffordance } from '../../../_shared/start-affordance';
+import { NumberField, SelectField, VenuesFields } from './match-format-fields';
 import { useTabRules } from './useTabRules';
 import type { TabProps } from './tab-props';
 import { bestOfOptions } from '@/lib/best-of-options';
@@ -53,9 +52,13 @@ export function MatchFormatTab({ tournamentId, readOnly, readOnlyWhy, ...props }
   // a "Customise this format" fork (code becomes custom_*, grammar unchanged).
   // Only `Generic_PointsCap` says it has no doubles ceiling.
   const grammar = rules.row?.['ruleset_grammar'] as
-    { hasAfterblow?: boolean; hasMaxDoubles?: boolean } | undefined;
+    { hasAfterblow?: boolean; hasMaxDoubles?: boolean; hasVenues?: boolean } | undefined;
   const hasAfterblow = Boolean(grammar?.hasAfterblow);
   const hasMaxDoubles = grammar?.hasMaxDoubles !== false;
+  // Only a ruleset that says it has no venues (Points cap) hides the choice: the server forces points there.
+  const hasVenues = grammar?.hasVenues !== false;
+  // Venues mode counts up from nothing: no point cap, no direction (the server resolves 'normal').
+  const venues = hasVenues && data.scoringUnit === 'venues';
   const start = rules.rules?.start ? matchFormatForm(rules.rules.start) : null;
   // The best-of read: a select keeps offering it after another pick (a 9 is no standard choice).
   const loaded = rules.rules?.matchFormat.bestOf;
@@ -69,15 +72,32 @@ export function MatchFormatTab({ tournamentId, readOnly, readOnlyWhy, ...props }
     <div className="space-y-4">
       {heading}
 
-      <NumberField
-        label={t('organizer.tournaments.settings.pointCap')}
-        hint={t('organizer.tournaments.settings.pointCapHelp')}
-        value={data.pointCap}
-        defaultValue={start?.pointCap}
-        onChange={(v) => set({ pointCap: v })}
-        min={1}
-        max={50}
-      />
+      {hasVenues && (
+        <SelectField
+          label={t('organizer.tournaments.settings.scoringUnitLabel')}
+          value={data.scoringUnit}
+          defaultValue={start?.scoringUnit}
+          onChange={(v) => set({ scoringUnit: v as MatchFormat['scoringUnit'] })}
+          options={[
+            { value: 'points', label: t('organizer.tournaments.settings.scoringUnitPoints') },
+            { value: 'venues', label: t('organizer.tournaments.settings.scoringUnitVenues') },
+          ]}
+        />
+      )}
+
+      {venues && <VenuesFields data={data} start={start} set={set} t={t} />}
+
+      {!venues && (
+        <NumberField
+          label={t('organizer.tournaments.settings.pointCap')}
+          hint={t('organizer.tournaments.settings.pointCapHelp')}
+          value={data.pointCap}
+          defaultValue={start?.pointCap}
+          onChange={(v) => set({ pointCap: v })}
+          min={1}
+          max={50}
+        />
+      )}
 
       <SelectField
         label={t('organizer.tournaments.settings.timerMode')}
@@ -202,20 +222,22 @@ export function MatchFormatTab({ tournamentId, readOnly, readOnlyWhy, ...props }
         />
       )}
 
-      <SelectField
-        label={t('organizer.tournaments.settings.scoringDirection')}
-        hint={t('organizer.tournaments.settings.scoringDirectionHelp')}
-        value={data.scoringDirection}
-        defaultValue={start?.scoringDirection}
-        onChange={(v) => set({ scoringDirection: v as MatchFormat['scoringDirection'] })}
-        options={[
-          { value: 'normal', label: t('organizer.tournaments.settings.scoringNormal') },
-          {
-            value: 'reverse_zero_loses',
-            label: t('organizer.tournaments.settings.scoringReverse'),
-          },
-        ]}
-      />
+      {!venues && (
+        <SelectField
+          label={t('organizer.tournaments.settings.scoringDirection')}
+          hint={t('organizer.tournaments.settings.scoringDirectionHelp')}
+          value={data.scoringDirection}
+          defaultValue={start?.scoringDirection}
+          onChange={(v) => set({ scoringDirection: v as MatchFormat['scoringDirection'] })}
+          options={[
+            { value: 'normal', label: t('organizer.tournaments.settings.scoringNormal') },
+            {
+              value: 'reverse_zero_loses',
+              label: t('organizer.tournaments.settings.scoringReverse'),
+            },
+          ]}
+        />
+      )}
 
       <button
         type="button"
@@ -227,113 +249,6 @@ export function MatchFormatTab({ tournamentId, readOnly, readOnlyWhy, ...props }
         {rules.saving ? t('common.saving') : t('organizer.tournaments.settings.save')}
       </button>
       {rules.auditDialog}
-    </div>
-  );
-}
-
-/**
- * A field's name, linked to its control by id, with the "modified" badge and Reset beside it
- * (`startAffordance`, outside the `<label>`). A null start value (no limit) reads as the 0 the
- * field shows for it, and Reset puts the null back.
- */
-function FieldHead<T>({
-  id,
-  label,
-  value,
-  start,
-  onReset,
-}: {
-  id: string;
-  label: string;
-  value: T;
-  start: T | undefined;
-  onReset: (v: T) => void;
-}) {
-  const shown = startAffordance(value, start, (s) => String(s ?? 0), onReset);
-  return (
-    <div className="mb-1 flex items-center gap-2 text-xs font-medium text-foreground-secondary">
-      <label htmlFor={id}>{label}</label>
-      {shown.badge}
-      <span className="ml-auto">{shown.reset}</span>
-    </div>
-  );
-}
-
-/** A number; a nullable one (a time limit, the doubles ceiling) shows its null as 0. */
-function NumberField<T extends number | null>({
-  label,
-  value,
-  defaultValue,
-  onChange,
-  min,
-  max,
-  suffix,
-  hint,
-}: {
-  label: string;
-  value: T;
-  /** What the ruleset starts from; Reset puts it back. None: no badge, no Reset. */
-  defaultValue?: T;
-  onChange: (v: T) => void;
-  min: number;
-  max: number;
-  suffix?: string;
-  hint?: string;
-}) {
-  const id = useId();
-  return (
-    <div>
-      <FieldHead id={id} label={label} value={value} start={defaultValue} onReset={onChange} />
-      <div className="flex items-center gap-2">
-        <input
-          id={id}
-          type="number"
-          value={value ?? 0}
-          min={min}
-          max={max}
-          onChange={(e) => onChange(Number(e.target.value) as T)}
-          className="w-32 rounded-md border border-border px-3 py-2 text-sm"
-        />
-        {suffix && <span className="text-xs text-muted">{suffix}</span>}
-      </div>
-      {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
-    </div>
-  );
-}
-
-function SelectField({
-  label,
-  value,
-  defaultValue,
-  onChange,
-  options,
-  hint,
-}: {
-  label: string;
-  value: string;
-  /** What the ruleset starts from; Reset puts it back. None: no badge, no Reset. */
-  defaultValue?: string;
-  onChange: (v: string) => void;
-  options: Array<{ value: string; label: string }>;
-  hint?: string;
-}) {
-  const id = useId();
-  return (
-    <div>
-      <FieldHead id={id} label={label} value={value} start={defaultValue} onReset={onChange} />
-      <select
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-border px-3 py-2 text-sm"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-      {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
     </div>
   );
 }

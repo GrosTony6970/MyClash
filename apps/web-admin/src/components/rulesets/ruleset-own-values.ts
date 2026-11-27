@@ -23,29 +23,39 @@ export type OwnMatchFormat = Record<string, unknown>;
 
 export type PhaseLeaf = 'pool' | 'bracket' | 'finals';
 export type BestOfLeaf = 'bestOfPool' | 'bestOfBracket' | 'bestOfFinals';
+export type VenuesLeaf = 'venuesPerRoundPool' | 'venuesPerRoundBracket' | 'venuesPerRoundFinals';
 /**
  * The match format values the editor's box shows. The time limits are the three phases; the
- * best-of leaves are the three phases of `bestOf`.
+ * best-of and won-venues leaves are the three phases of `bestOf` and `venuesPerRound`.
  */
 export type MatchFormatLeaf =
   | 'pointCap'
   | 'timerMode'
   | 'scoringDirection'
+  | 'scoringUnit'
+  | 'stopWhenDecided'
   | 'softClockLimitSeconds'
   | 'maxDoubleHits'
   | PhaseLeaf
-  | BestOfLeaf;
-export type LeafValue = number | string | null;
+  | BestOfLeaf
+  | VenuesLeaf;
+export type LeafValue = number | string | boolean | null;
 
-type PhasedLeaf = PhaseLeaf | BestOfLeaf;
+type PhasedLeaf = PhaseLeaf | BestOfLeaf | VenuesLeaf;
 /** Each leaf stored inside a per-phase object: that object's key, and the phase. */
-const PHASED: Record<PhasedLeaf, { parent: 'timeLimitsSeconds' | 'bestOf'; phase: PhaseLeaf }> = {
+const PHASED: Record<
+  PhasedLeaf,
+  { parent: 'timeLimitsSeconds' | 'bestOf' | 'venuesPerRound'; phase: PhaseLeaf }
+> = {
   pool: { parent: 'timeLimitsSeconds', phase: 'pool' },
   bracket: { parent: 'timeLimitsSeconds', phase: 'bracket' },
   finals: { parent: 'timeLimitsSeconds', phase: 'finals' },
   bestOfPool: { parent: 'bestOf', phase: 'pool' },
   bestOfBracket: { parent: 'bestOf', phase: 'bracket' },
   bestOfFinals: { parent: 'bestOf', phase: 'finals' },
+  venuesPerRoundPool: { parent: 'venuesPerRound', phase: 'pool' },
+  venuesPerRoundBracket: { parent: 'venuesPerRound', phase: 'bracket' },
+  venuesPerRoundFinals: { parent: 'venuesPerRound', phase: 'finals' },
 };
 const isPhased = (leaf: MatchFormatLeaf): leaf is PhasedLeaf => leaf in PHASED;
 
@@ -55,10 +65,10 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 function leafSchema(leaf: MatchFormatLeaf) {
   if (!isPhased(leaf)) return MatchFormatConfigSchema.shape[leaf];
   const { parent, phase } = PHASED[leaf];
+  const { shape } = MatchFormatConfigSchema;
+  if (parent === 'venuesPerRound') return shape.venuesPerRound.unwrap().shape[phase];
   const phases =
-    parent === 'bestOf'
-      ? MatchFormatConfigSchema.shape.bestOf.unwrap().shape
-      : MatchFormatConfigSchema.shape.timeLimitsSeconds.unwrap().shape;
+    parent === 'bestOf' ? shape.bestOf.unwrap().shape : shape.timeLimitsSeconds.unwrap().shape;
   return phases[phase];
 }
 

@@ -138,6 +138,38 @@ describe('the Match format tab', () => {
     expect(opened.saved).toEqual([{ rulesetConfig: { matchFormat: { bestOf: { bracket: 11 } } } }]);
   });
 
+  it('scores by venues: shows the venue fields, hides the cap and the direction, and saves the unit', async () => {
+    opened = await openTab('match-format', { effectiveRules: CAP_7 });
+    const has = (text: string) =>
+      [...document.querySelectorAll('label')].some((l) => l.textContent?.startsWith(text));
+    expect(has('Pool won venues per round')).toBe(false);
+
+    await set('Score by', 'venues');
+    expect(has('Pool won venues per round')).toBe(true);
+    expect(has('Bracket won venues per round')).toBe(true);
+    expect(has('Finals won venues per round')).toBe(true);
+    expect(has('Stop the round as soon as it is decided')).toBe(true);
+    expect(has('Point cap')).toBe(false);
+    expect(has('Scoring direction')).toBe(false);
+
+    await set('Pool won venues per round', '7');
+    await save();
+    expect(opened.saved).toEqual([
+      { rulesetConfig: { matchFormat: { scoringUnit: 'venues', venuesPerRound: { pool: 7 } } } },
+    ]);
+  });
+
+  it('offers no unit choice on a ruleset without venues', async () => {
+    opened = await openTab('match-format', {
+      effectiveRules: CAP_7,
+      row: { ruleset_grammar: { hasAfterblow: false, hasMaxDoubles: false, hasVenues: false } },
+    });
+    expect(
+      [...document.querySelectorAll('label')].some((l) => l.textContent?.startsWith('Score by')),
+    ).toBe(false);
+    expect(valueOf('Point cap')).toBe('7');
+  });
+
   it('shows no badge and no Reset when what the ruleset starts from is unknown', async () => {
     opened = await openTab('match-format', { effectiveRules: { ...CAP_7, start: null } });
     await set('Point cap', '9');

@@ -373,6 +373,7 @@ export function RulesetForm({
         onChange={setOwnMatchFormat}
         onValidity={(leaf, valid) => validity(leaf)(valid)}
         hasMaxDoubles={sections.maxDoubles}
+        hasVenues={sections.venues}
         disabled={disabled}
       />
 

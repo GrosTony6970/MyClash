@@ -788,6 +788,15 @@ export const organizer = {
       bestOfN: 'Best of {n}',
       bestOfHelp:
         'Number of rounds; winning the majority of rounds takes the match. Single round = current behaviour.',
+      scoringUnitLabel: 'Score by',
+      scoringUnitPoints: 'Points (target values)',
+      scoringUnitVenues: 'Venues (1 per won exchange)',
+      venuesPerRoundPool: 'Pool won venues per round',
+      venuesPerRoundBracket: 'Bracket won venues per round',
+      venuesPerRoundFinals: 'Finals won venues per round',
+      stopWhenDecidedLabel: 'Stop the round as soon as it is decided',
+      stopWhenDecidedHelp:
+        'Off: all won venues are fought, even when the result can no longer change.',
       softClock: 'Soft clock',
       maxDoubleHits: 'Max double hits',
       maxDoubleHitOutcome: 'Result at the doubles ceiling',

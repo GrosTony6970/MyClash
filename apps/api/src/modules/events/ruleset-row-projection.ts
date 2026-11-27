@@ -141,6 +141,13 @@ export interface ResolvedRulesetGrammar {
    * that says nothing keeps the behaviour it already had.
    */
   hasMaxDoubles: boolean;
+  /**
+   * Whether the ruleset offers venues mode (`scoringUnit: 'venues'`). Drives
+   * whether the tournament form offers the "Score by" choice: the server forces
+   * points for a ruleset that says `false`, so offering it would be a choice
+   * that silently does nothing. True for everything except `Generic_PointsCap`.
+   */
+  hasVenues: boolean;
 }
 
 export const FALLBACK_GRAMMAR: ResolvedRulesetGrammar = {
@@ -150,6 +157,7 @@ export const FALLBACK_GRAMMAR: ResolvedRulesetGrammar = {
   afterblowFixedValue: 1,
   defaultAfterblowMode: 'full',
   hasMaxDoubles: true,
+  hasVenues: true,
 };
 
 /** The `custom_rulesets` columns {@link grammarFromRow} reads. */
@@ -177,5 +185,6 @@ export function grammarFromRow(row: CustomRulesetGrammarRow): ResolvedRulesetGra
     // An org-authored ruleset keeps the ceiling — the operator's ruling is that
     // only `Generic_PointsCap` is without one.
     hasMaxDoubles: true,
+    hasVenues: true,
   };
 }

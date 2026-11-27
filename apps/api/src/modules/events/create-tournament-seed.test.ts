@@ -349,6 +349,7 @@ describe('buildSeededScoringConfig (pure)', () => {
     afterblowFixedValue: 1,
     defaultAfterblowMode: 'deductive' as const,
     hasMaxDoubles: true,
+    hasVenues: true,
   };
   const RETARGETED = {
     targets: [

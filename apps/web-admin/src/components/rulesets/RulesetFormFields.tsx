@@ -167,6 +167,38 @@ export function SelectField({
   );
 }
 
+/** A yes/no setting: the name, then its box and the words that say what unticking does. */
+export function CheckField({
+  label,
+  hint,
+  checked,
+  onChange,
+  disabled,
+  ...affordance
+}: Affordance & {
+  label: string;
+  hint?: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+}) {
+  const id = useId();
+  return (
+    <div>
+      <FieldHead id={id} label={label} disabled={disabled} {...affordance} />
+      <input
+        id={id}
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        disabled={disabled}
+        className="mt-1"
+      />
+      {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
+    </div>
+  );
+}
+
 /** The badge and Reset of a section with its own heading (the double-hit penalty). */
 export function SectionAffordance({
   modified,

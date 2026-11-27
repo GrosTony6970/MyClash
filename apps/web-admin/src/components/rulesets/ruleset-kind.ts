@@ -41,10 +41,33 @@ export interface EditorSections {
   afterblow: boolean;
   /** The match format's doubles ceiling (Points cap has none: not shown). */
   maxDoubles: boolean;
+  /** The match format's "Score by" choice and its venue fields (Points cap scores in points only). */
+  venues: boolean;
 }
 
 export const EDITOR_SECTIONS: Record<RulesetEditorKind, EditorSections> = {
-  tf: { formula: false, dials: true, targets: true, afterblow: false, maxDoubles: true },
-  pointsCap: { formula: false, dials: false, targets: false, afterblow: false, maxDoubles: false },
-  formula: { formula: true, dials: false, targets: true, afterblow: true, maxDoubles: true },
+  tf: {
+    formula: false,
+    dials: true,
+    targets: true,
+    afterblow: false,
+    maxDoubles: true,
+    venues: true,
+  },
+  pointsCap: {
+    formula: false,
+    dials: false,
+    targets: false,
+    afterblow: false,
+    maxDoubles: false,
+    venues: false,
+  },
+  formula: {
+    formula: true,
+    dials: false,
+    targets: true,
+    afterblow: true,
+    maxDoubles: true,
+    venues: true,
+  },
 };

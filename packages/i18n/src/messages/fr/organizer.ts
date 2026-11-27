@@ -781,6 +781,15 @@ export const organizer = {
       bestOfN: 'Au meilleur des {n}',
       bestOfHelp:
         'Nombre de manches; gagner la majorité des manches remporte le match. Manche unique = comportement actuel.',
+      scoringUnitLabel: 'Score par',
+      scoringUnitPoints: 'Points (valeur des cibles)',
+      scoringUnitVenues: 'Venues (1 par venue gagnée)',
+      venuesPerRoundPool: 'Venues gagnées par manche (poule)',
+      venuesPerRoundBracket: 'Venues gagnées par manche (tableau)',
+      venuesPerRoundFinals: 'Venues gagnées par manche (finales)',
+      stopWhenDecidedLabel: "Arrêter la manche dès qu'elle est jouée",
+      stopWhenDecidedHelp:
+        'Désactivé : toutes les venues gagnées sont jouées, même quand le résultat ne peut plus changer.',
       softClock: 'Horloge souple',
       maxDoubleHits: 'Doubles maximum',
       maxDoubleHitOutcome: 'Résultat au plafond de doubles',

@@ -89,6 +89,35 @@ describe("the wizard's rules steps", () => {
     },
   );
 
+  it('step 2 scores by venues, and offers no unit on a ruleset without venues', async () => {
+    STEP.n = 2;
+    const labels = () =>
+      [...document.body.querySelectorAll('label')].map((l) => l.textContent ?? '');
+    const has = (text: string) => labels().some((l) => l.startsWith(text));
+    page = await openEventPage(<NewTournamentPage />, READS, { [SAVE]: {} });
+    const unit = control('Score by');
+    await act(async () => type(unit, 'venues'));
+    expect(has('Pool won venues per round')).toBe(true);
+    expect(has('Point cap')).toBe(false);
+    await tap('Next');
+    expect(stepSaves()).toEqual([
+      { rulesetConfig: { matchFormat: { scoringUnit: 'venues' } }, wizardStep: 2 },
+    ]);
+    page.unmount();
+
+    const grammar = { hasAfterblow: false, hasMaxDoubles: false, hasVenues: false };
+    page = await openEventPage(
+      <NewTournamentPage />,
+      {
+        ...READS,
+        [TOURNAMENT]: { ...TOURNAMENT_ROW, effectiveRules: MARKED, ruleset_grammar: grammar },
+      },
+      { [SAVE]: {} },
+    );
+    expect(has('Point cap')).toBe(true);
+    expect(has('Score by')).toBe(false);
+  });
+
   it('step 2 shows a best-of beyond 7 as itself', async () => {
     STEP.n = 2;
     const rules = { ...MARKED, matchFormat: normalizeMatchFormatConfig({ bestOf: { finals: 9 } }) };

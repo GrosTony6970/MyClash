@@ -47,6 +47,7 @@ describe('the words of the ruleset editor', () => {
             onChange={() => undefined}
             onValidity={() => undefined}
             hasMaxDoubles
+            hasVenues
           />
         </I18nProvider>,
       ),
@@ -54,6 +55,8 @@ describe('the words of the ruleset editor', () => {
     const options = [...container.querySelectorAll('option')].map((o) => o.textContent);
     const bestOf = ['Manche unique', 'Au meilleur des 3', 'Au meilleur des 5', 'Au meilleur des 7'];
     expect(options).toEqual([
+      'Points (valeur des cibles)',
+      'Venues (1 par venue gagnée)',
       'Compte à rebours',
       'Chronomètre croissant',
       'Normal',

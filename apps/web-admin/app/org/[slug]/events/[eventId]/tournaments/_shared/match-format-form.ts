@@ -19,6 +19,12 @@ export interface WizardMatchFormat {
   maxDoubleHitOutcome: 'double_loss_zero_scores' | 'draw_zero_scores' | 'result_stands';
   afterblowMode: 'full' | 'deductive';
   scoringDirection: 'normal' | 'reverse_zero_loses';
+  /** What a bout counts: target points, or the venues (exchanges) won. */
+  scoringUnit: 'points' | 'venues';
+  /** Won venues that end a round, per phase (venues mode). */
+  venuesPerRound: { pool: number; bracket: number; finals: number };
+  /** Venues mode: end the round once the lead cannot be caught. */
+  stopWhenDecided: boolean;
   /** Best-of-N rounds per phase; 1 = single round. Odd values only (1/3/5/7). */
   bestOf: { pool: number; bracket: number; finals: number };
   /** What the referee plays when the clock runs out and nobody leads. */
@@ -61,6 +67,13 @@ export function matchFormatForm(rules: RulesStart): WizardMatchFormat {
     maxDoubleHitOutcome: mf.maxDoubleHitOutcome,
     afterblowMode: rules.scoring.afterblowMode,
     scoringDirection: mf.scoringDirection,
+    scoringUnit: mf.scoringUnit,
+    venuesPerRound: {
+      pool: mf.venuesPerRound.pool,
+      bracket: mf.venuesPerRound.bracket,
+      finals: mf.venuesPerRound.finals,
+    },
+    stopWhenDecided: mf.stopWhenDecided,
     bestOf: { pool: mf.bestOf.pool, bracket: mf.bestOf.bracket, finals: mf.bestOf.finals },
     levelAtTime: {
       pool: mf.levelAtTime.pool,
