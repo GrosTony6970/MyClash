@@ -186,7 +186,7 @@ describe('PhasesService', () => {
       type: 'pool',
     };
 
-    /** The same trick for `.eq('type', 'pool')`: right tournament, wrong type. */
+    /** The same trick for `.in('type', ['pool'])`: right tournament, wrong type. */
     const BRACKET_PHASE_HERE: SupabaseRow = {
       id: 'phase-bracket',
       tournament_id: 'tournament-1',
@@ -562,7 +562,7 @@ describe('PhasesService', () => {
       // skipped so we don't crash on n<2. totalMatches stays 0.
       const { service } = makeService({
         // This decoy is the same tournament's BRACKET phase: drop
-        // `.eq('type', 'pool')` and the check finds it and refuses.
+        // `.in('type', ['pool'])` and the check finds it and refuses.
         phases: { rows: [BRACKET_PHASE_HERE] },
         tournaments: { rows: TOURNAMENTS },
         registrations: { rows: [reg('r1', 1), ...REG_DECOYS] },
@@ -829,6 +829,19 @@ describe('PhasesService', () => {
       },
       { data: null, error: null }, // 6. pool gate — straight-to-bracket
     ];
+
+    it.each(['single_elim', 'double_elim'])(
+      'refuses with a 409 when a %s bracket already exists (no force)',
+      async (type) => {
+        // Only `phases` is seeded: the refusal lands before any other read.
+        const { service } = makeService({
+          phases: { rows: [{ id: 'phase-1', tournament_id: 'tournament-1', type }] },
+        });
+        await expect(service.generateBracket('tournament-1', {} as never)).rejects.toThrow(
+          ConflictException,
+        );
+      },
+    );
 
     /** `n` qualifying registrations, plus the two rows the query must skip. */
     const qualifiers = (n: number): SupabaseRow[] => [

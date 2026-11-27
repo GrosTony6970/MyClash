@@ -153,6 +153,7 @@ type SeedingResolution =
 // registration-seed instead of seeding from pool standings.
 import { PoolStandingsService } from '../pool-standings/pool-standings.service';
 import { assertLicesBelongToEvent } from '../lices/lices-in-event';
+import { existingPhase } from './existing-phase';
 
 @Injectable()
 export class PhasesService {
@@ -207,14 +208,7 @@ export class PhasesService {
     this.logger.log(
       `generatePools: tournament=${tournamentId} dto=${JSON.stringify(dto)} force=${force}`,
     );
-    // Check for existing pool phase
-    const { data: existing } = await this.supabase.service
-      .from('phases')
-      .select('id')
-      .eq('tournament_id', tournamentId)
-      .eq('type', 'pool')
-      .maybeSingle();
-
+    const existing = await existingPhase(this.supabase.service, tournamentId, ['pool']);
     if (existing && !force) {
       throw new ConflictException(
         'A pool phase already exists for this tournament. Use ?force=true to regenerate.',
@@ -508,14 +502,10 @@ export class PhasesService {
     // populateBracket resolves the rank order from this value later.
     const seedingStrategy = dto.seedingStrategy ?? 'snake';
 
-    // Check for existing elim phase
-    const { data: existing } = await this.supabase.service
-      .from('phases')
-      .select('id')
-      .eq('tournament_id', tournamentId)
-      .in('type', ['single_elim', 'double_elim'])
-      .maybeSingle();
-
+    const existing = await existingPhase(this.supabase.service, tournamentId, [
+      'single_elim',
+      'double_elim',
+    ]);
     if (existing && !force) {
       throw new ConflictException(
         'An elimination phase already exists. Use ?force=true to regenerate.',
