@@ -70,7 +70,7 @@ vi.mock('../../referees/_components/useAssignmentBoard', () => ({
 let container: HTMLDivElement;
 let root: Root;
 
-async function render(boardPools: AssignmentBoardPool[]) {
+async function render(boardPools: AssignmentBoardPool[], locale: 'en' | 'fr' = 'en') {
   pools = boardPools;
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   container = document.createElement('div');
@@ -78,7 +78,7 @@ async function render(boardPools: AssignmentBoardPool[]) {
   root = createRoot(container);
   await act(async () => {
     root.render(
-      <I18nProvider locale="en">
+      <I18nProvider locale={locale}>
         <RefereesTab eventId="ev1" tournamentId="t1" isReadOnly={false} />
       </I18nProvider>,
     );
@@ -110,6 +110,24 @@ describe('a bracket bout card', () => {
     expect(text).toMatch(/\d{2}:\d{2}/);
     expect(text).not.toContain('Piste');
     expect(text).not.toContain('·');
+  });
+});
+
+/**
+ * A French organiser read "ROUND OF 16" over the bouts: the round headings came from an
+ * English label. They are named in the reader's language, like the bracket's columns.
+ */
+describe('the round headings', () => {
+  const headings = () => [...container.querySelectorAll('h3')].map((h) => h.textContent);
+
+  it("are in the reader's language", async () => {
+    await render([bout('LSW-B-R16-M1', null), bout('LSW-B-QF-M1', null)], 'fr');
+    expect(headings()).toEqual(['Tableau de 16', 'Quarts de finale']);
+  });
+
+  it('name a bout with no round by its phase, never "Other"', async () => {
+    await render([bout('LSW-B-M7', null)], 'fr');
+    expect(headings()).toEqual(['Tableau']);
   });
 });
 
