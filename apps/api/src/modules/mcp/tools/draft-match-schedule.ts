@@ -5,9 +5,9 @@
  *
  * Each Match by its round code in the Tournament, each piste by its name in the Event, each start
  * on the Event's wall clock, stored as the UTC instant. A piste two bouts would hold at once,
- * in the draft or on the board, refuses before the save: Apply runs one placement per action, so
- * a draft that collides would move its first bouts and fail on the next. Apply checks them all
- * again before it moves any (the board can fill between the draft and Apply).
+ * in the draft or on the board, refuses before the save: a link never leads to a draft Apply
+ * refuses at once (call X). Apply checks them all again before it moves any (the board can fill
+ * between the draft and Apply), then writes them in one batch.
  */
 import { zonedToUtcIso } from '@myclash/time';
 import { ConflictException, Logger } from '@nestjs/common';

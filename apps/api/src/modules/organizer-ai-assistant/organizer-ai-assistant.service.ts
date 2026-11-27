@@ -396,8 +396,12 @@ export class OrganizerAIAssistantService {
     const total = draft.proposed_actions_json.length;
     const appliedResults = [];
     try {
-      for (const action of draft.proposed_actions_json) {
-        appliedResults.push(await this.applyAction(eventId, actorUserId, action));
+      if (draft.draft_type === 'schedule_grid') {
+        appliedResults.push(...(await this.applySchedule(eventId, draft)));
+      } else {
+        for (const action of draft.proposed_actions_json) {
+          appliedResults.push(await this.applyAction(eventId, actorUserId, action));
+        }
       }
     } catch (err) {
       const applied = appliedResults.length;
@@ -434,15 +438,15 @@ export class OrganizerAIAssistantService {
   }
 
   /**
-   * A schedule draft's placements, checked together before the claim and any write. Apply runs
-   * one placement per action, so two bouts of one draft on one piste at one time, or a bout on a
-   * piste the board has filled since the draft, moved the first bouts for real and failed on the
-   * next: the draft ended `failed`, partly applied, and could not be applied again. Checked
-   * first, by the placement owner with `checkOnly` (it writes nothing), a collision or another
-   * Event's Match refuses the Apply and the draft stays `ready`, nothing moved.
+   * A schedule draft's placements, checked together before the claim and any write. Two bouts of
+   * one draft on one piste at one time, or a bout on a piste the board has filled since the
+   * draft, used to move the first bouts for real and fail on the next: the draft ended `failed`,
+   * partly applied, and could not be applied again. Checked first, by the placement owner with
+   * `checkOnly` (it writes nothing), a collision or another Event's Match refuses the Apply and
+   * the draft stays `ready`, nothing moved.
    *
-   * The window: the board can still change between this check and the writes. Each placement's
-   * own check then refuses, and the draft ends partly applied, as before.
+   * The window: the board can still change between this check and the write. The write's own
+   * check (`applySchedule`) then refuses before any bout moves, and the draft is marked failed.
    */
   private async assertPlacementsFit(eventId: string, draft: DraftRow) {
     if (draft.draft_type !== 'schedule_grid') return;
@@ -450,6 +454,22 @@ export class OrganizerAIAssistantService {
     const matchIds = placements.map((placement) => placement.matchId);
     await assertMatchesBelongToEvent(this.supabase.service, eventId, matchIds);
     await this.placement.placeMatches(eventId, placements, { checkOnly: true });
+  }
+
+  /**
+   * A schedule draft's placements, written in ONE call to the placement owner, as the schedule
+   * board writes a batch. Marie is 30 minutes late on Piste 2 and moves M01 14:00→14:30, M02
+   * 14:30→15:00 and M03 15:00→15:30. The batch check leaves every bout of the batch out by its
+   * old place, so it passes; written one action at a time, M01 alone met M02, still at 14:30,
+   * and the Apply failed. One call checks the batch again and then writes it whole.
+   *
+   * Not atomic: the owner writes row by row (`allSettled`). After its check passes, a row fails
+   * only on a database error, and the owner's refusal then says "k/N placements applied" itself.
+   */
+  private async applySchedule(eventId: string, draft: DraftRow) {
+    const placements = draft.proposed_actions_json.map(schedulePlacement);
+    await this.placement.placeMatches(eventId, placements);
+    return placements.map(({ matchId }) => ({ kind: 'schedule_match', result: { id: matchId } }));
   }
 
   /**
@@ -560,16 +580,7 @@ export class OrganizerAIAssistantService {
       );
       return { kind, result };
     }
-    if (kind === 'schedule_match') {
-      const placement = schedulePlacement(action);
-      await assertMatchesBelongToEvent(this.supabase.service, eventId, [placement.matchId]);
-      // Through the one placement owner, which checks the Lice, refuses a time
-      // it cannot read and refuses a double-booked piste. This door used to
-      // write both columns with no occupancy check at all, so the assistant
-      // could drop a bout onto a busy strip and report success.
-      await this.placement.placeMatches(eventId, [placement]);
-      return { kind, result: { id: placement.matchId } };
-    }
+    // `schedule_match` is not here: a schedule draft is written whole (`applySchedule`).
     if (kind === 'assign_referee')
       return { kind, result: await this.assignReferee(eventId, action) };
     throw new BadRequestException(`Unsupported draft action: ${String(kind)}`);
