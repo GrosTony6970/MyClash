@@ -106,5 +106,6 @@ test('a draft whose Apply stopped says so, axe clean, with no Apply or Reject', 
 
   await expect(page.getByText('Apply stopped before it finished.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Apply', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Reject', exact: true })).toHaveCount(0);
   await expectNoCriticalAxeViolations(page);
 });

@@ -207,7 +207,7 @@ describe('Apply and Reject', () => {
     expect(button('Reject')).toBeUndefined();
   });
 
-  it('a late reread of the draft is dropped when the address moved on meanwhile', async () => {
+  it('a late reread of the draft, and its Apply sentence, are dropped when the address moved on', async () => {
     let applied = false;
     const draft = () =>
       applied ? draftOf([POOLS], { status: 'applied', applyStarted: true }) : draftOf([POOLS]);
@@ -228,6 +228,26 @@ describe('Apply and Reject', () => {
     expect(draftReads()).toHaveLength(2);
     expect(text()).toContain(TOURNAMENT_EN);
     expect(text()).not.toContain(POOLS_EN);
+    expect(text()).not.toContain('Draft applied.');
+  });
+
+  it('a link that names the draft in upper case still reads it again after Apply', async () => {
+    nav.search = `draft=${DRAFT_ID.toUpperCase()}`;
+    let applied = false;
+    const draft = () =>
+      applied ? draftOf([POOLS], { status: 'applied', applyStarted: true }) : draftOf([POOLS]);
+    page = await openEventPage(
+      <EventAIAssistantPage />,
+      { ...reads(draft), [`${DRAFTS_READ}/${DRAFT_ID.toUpperCase()}`]: draft },
+      { [`POST ${DRAFT_READ}/apply`]: { ok: true } },
+    );
+    applied = true;
+
+    await act(async () => button('Apply')?.click());
+    await page.settle();
+
+    expect(text()).toContain('Draft applied.');
+    expect(document.body.querySelector('span.rounded-full.bg-border')?.textContent).toBe('Applied');
   });
 
   it('a rejected draft cannot be rejected again', async () => {

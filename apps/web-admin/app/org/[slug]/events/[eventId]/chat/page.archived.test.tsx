@@ -169,6 +169,46 @@ describe('a proposal closed in another tab (ruling 994)', () => {
   });
 });
 
+describe('a Confirm the server refuses for any reason', () => {
+  it('reads the conversation again, so a draft its Apply closed keeps no live Confirm', async () => {
+    // The Apply started, then stopped at its write: the draft is closed, and the card says so.
+    let stopped = false;
+    const closed = structuredClone(CONVERSATION);
+    Object.assign(closed.messages[0]!.proposal, { status: 'failed', applyStarted: true });
+    const refusal = {
+      ok: false as const,
+      kind: 'http' as const,
+      status: 400,
+      detail: 'Partially applied 0/1 action(s) before failing',
+      validationErrors: null,
+      code: 'bad_request',
+      details: null,
+    };
+    page = await openEventPage(
+      <EventChatPage />,
+      {
+        '/api/v1/events/ev1': { id: 'ev1', name: 'Open 2026', status: 'running' },
+        ...READS,
+        '/api/v1/events/ev1/chat/conversations/c-1': () => (stopped ? closed : CONVERSATION),
+      },
+      { 'POST /api/v1/events/ev1/chat/conversations/c-1/proposals/d-1/confirm': refused(refusal) },
+    );
+    stopped = true;
+    const live = () => [...document.body.querySelectorAll('button')].map((b) => b.textContent);
+    expect(live()).toContain('Confirm & apply');
+
+    await act(async () =>
+      [...document.body.querySelectorAll('button')]
+        .find((b) => b.textContent === 'Confirm & apply')!
+        .click(),
+    );
+    await page.settle();
+
+    expect(live()).not.toContain('Confirm & apply');
+    expect(live()).not.toContain('Dismiss');
+  });
+});
+
 describe('a proposal whose schedule collides at Apply', () => {
   it('says so in words, never the bout id the API names', async () => {
     const busy = {

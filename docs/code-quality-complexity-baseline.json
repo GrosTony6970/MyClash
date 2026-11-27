@@ -487,7 +487,7 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/TournamentQueryPanel.tsx:70",
     "apps/web-admin/app/org/[slug]/events/[eventId]/_components/ArchivedBanner.tsx:27",
     "apps/web-admin/app/org/[slug]/events/[eventId]/_components/EventLogoCard.tsx:41",
-    "apps/web-admin/app/org/[slug]/events/[eventId]/ai-assistant/page.tsx:29",
+    "apps/web-admin/app/org/[slug]/events/[eventId]/ai-assistant/page.tsx:35",
     "apps/web-admin/app/org/[slug]/events/[eventId]/archive/page.tsx:45",
     "apps/web-admin/app/org/[slug]/events/[eventId]/bracket/_tabs/RefereesTab.tsx:210",
     "apps/web-admin/app/org/[slug]/events/[eventId]/bracket/_tabs/RefereesTab.tsx:39",

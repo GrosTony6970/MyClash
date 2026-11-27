@@ -18,6 +18,12 @@ interface Tournament {
   name: string;
 }
 
+/** What an Apply or a Reject says: shown only while the address still names its draft. */
+interface DecisionWords {
+  message?: string;
+  error?: string | null;
+}
+
 const DRAFT_TYPES: DraftType[] = [
   'tournament_config',
   'pool_plan',
@@ -32,7 +38,9 @@ export default function EventAIAssistantPage() {
   const router = useRouter();
   const pathname = usePathname();
   const { slug, eventId } = params;
-  const openDraftId = search.get('draft');
+  // Lower-cased, as the API answers ids: an upper-case link would never match the draft shown,
+  // and every reread after Apply would be dropped.
+  const openDraftId = search.get('draft')?.toLowerCase() ?? null;
   const draftsPath = `/api/v1/events/${eventId}/ai-assistant/drafts`;
   const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
@@ -181,47 +189,43 @@ export default function EventAIAssistantPage() {
     }
   }
 
-  async function applyDraft(id: string) {
+  async function applyDraft(id: string): Promise<DecisionWords> {
     const r = await apiRequest(apiUrl, `${draftsPath}/${id}/apply`, { method: 'POST' });
-    if (r.ok) {
-      setMessage(t('organizer.aiAssistant.applySuccess'));
-      return;
-    }
+    if (r.ok) return { message: t('organizer.aiAssistant.applySuccess') };
     // Applying a draft writes real tournament configuration. When it is
     // refused, which action collided is the only thing worth saying.
-    const message = applyFailureMessage(r, t, t('organizer.aiAssistant.applyError'));
-    if (message) setError(message);
+    return { error: applyFailureMessage(r, t, t('organizer.aiAssistant.applyError')) };
   }
 
-  async function rejectDraft(id: string) {
+  async function rejectDraft(id: string): Promise<DecisionWords> {
     const r = await apiRequest(apiUrl, `${draftsPath}/${id}`, {
       method: 'PATCH',
       body: { status: 'rejected' },
     });
-    if (r.ok) {
-      setMessage(t('organizer.aiAssistant.rejectSuccess'));
-      return;
-    }
-    const message = rejectFailureMessage(r, t, t('organizer.aiAssistant.rejectError'));
-    if (message) setError(message);
+    if (r.ok) return { message: t('organizer.aiAssistant.rejectSuccess') };
+    return { error: rejectFailureMessage(r, t, t('organizer.aiAssistant.rejectError')) };
   }
 
   /**
    * Apply or Reject, then the open draft reads again: applied, rejected, partly applied, or
    * closed by another tab, it shows its new state. The history's buttons wait while this runs,
    * but the address can still move (a link, the browser's Back): then the address's own read
-   * shows its draft, and this one, landing later, is dropped.
+   * shows its draft, and this one, landing later, is dropped with its words ("Draft applied."
+   * would sit above another draft).
    */
-  async function decide(decision: (id: string) => Promise<void>) {
+  async function decide(decision: (id: string) => Promise<DecisionWords>) {
     if (!selectedDraft) return;
     const id = selectedDraft.id;
     setBusy(true);
     setError(null);
     setMessage(null);
     try {
-      await decision(id);
+      const words = await decision(id);
       const [read] = await Promise.all([readDraft(id), refreshDrafts()]);
-      if (addressedDraft.current === id) showDraft(read);
+      if (addressedDraft.current !== id) return;
+      if (words.message) setMessage(words.message);
+      if (words.error) setError(words.error);
+      showDraft(read);
     } finally {
       setBusy(false);
     }
