@@ -1,6 +1,6 @@
 'use client';
 
-import { FORMULA_VARIABLE_KEYS } from '@myclash/rulesets';
+import { TIEBREAK_VARIABLES } from '@myclash/rulesets';
 import type { RankingRule, Tiebreaker, VariableKey } from '@myclash/rulesets';
 import { useI18n } from '@myclash/next-i18n/client';
 import { rankingKeyLabel } from './ranking-key-label';
@@ -13,7 +13,7 @@ interface Props {
    *  as a read-only list with a "Read-only" badge instead of the "no
    *  tie-breakers configured" message. Used for is_system rulesets whose
    *  real ranking rules live on the coded `rankingChain` (with keys that
-   *  don't map to the FORMULA_VARIABLE_KEYS whitelist). */
+   *  don't map to the TIEBREAK_VARIABLES list). */
   systemFallback?: RankingRule[];
 }
 
@@ -83,7 +83,7 @@ export function TiebreakersEditor({ value, onChange, disabled, systemFallback }:
                 disabled={disabled}
                 className="rounded-md border border-border px-2 py-1 text-sm"
               >
-                {FORMULA_VARIABLE_KEYS.map((v) => (
+                {TIEBREAK_VARIABLES.map((v) => (
                   <option key={v} value={v}>
                     {t(`admin.rulesets.variables.${v}`)}
                   </option>

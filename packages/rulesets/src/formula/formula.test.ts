@@ -19,6 +19,7 @@ describe('evaluateFormula', () => {
     doubleHits: 2,
     hitsGiven: 12,
     hitsReceived: 6,
+    pointsReceived: 8,
     pointsPerVictory: 3,
     pointsPerTie: 1,
     pointsPerLoss: 0,

@@ -4,6 +4,7 @@ export {
   FormulaConfigSchema,
   FormulaConstantsSchema,
   FormulaNodeSchema,
+  TIEBREAK_VARIABLES,
   TiebreakerSchema,
   isVariableKey,
 } from './types';
@@ -14,6 +15,7 @@ export type {
   FormulaConstants,
   FormulaNode,
   Tiebreaker,
+  TiebreakVariable,
   VariableKey,
 } from './types';
 

@@ -22,8 +22,10 @@ import { renderFormula } from '@myclash/rules';
 import { doublePenalty, type DoublePenaltySpec } from '../tf_v1/double-penalty';
 import {
   FORMULA_VARIABLE_KEYS,
+  TIEBREAK_VARIABLES,
   type FormulaConfig,
   type Tiebreaker,
+  type TiebreakVariable,
   type VariableKey,
 } from './types';
 
@@ -58,18 +60,23 @@ const FORMULA_STANDINGS_COLUMNS: StandingsColumn[] = [
 ];
 
 /**
- * Formula variables that correspond to a per-fighter standings column. The
- * remaining variables (pointsPerVictory, doublePenalty, …) are configured
- * constants — identical for every fighter, so useless as a tiebreak.
+ * The standings column each tie-breaker variable ranks on. Exhaustive over
+ * `TIEBREAK_VARIABLES`, so the list the schema accepts and this map cannot
+ * drift. `pointsReceived` is not in it: `ptsConceded` is the bouts' stored
+ * scores, penalties included, which is not the same number.
  */
-const TIEBREAK_COLUMN_BY_VARIABLE: Partial<Record<VariableKey, string>> = {
+const TIEBREAK_COLUMN_BY_VARIABLE: Record<TiebreakVariable, string> = {
   victories: 'W',
-  losses: 'L',
   ties: 'D',
+  losses: 'L',
   doubleHits: 'doubles',
   hitsGiven: 'hitsGiven',
   hitsReceived: 'hitsReceived',
 };
+
+function isTiebreakVariable(variable: VariableKey): variable is TiebreakVariable {
+  return (TIEBREAK_VARIABLES as readonly VariableKey[]).includes(variable);
+}
 
 /**
  * Rank by this ruleset's score, then by the author's own tiebreakers.
@@ -83,8 +90,11 @@ const TIEBREAK_COLUMN_BY_VARIABLE: Partial<Record<VariableKey, string>> = {
 function buildRankingChain(tiebreakers: Tiebreaker[]): RankingRule[] {
   const chain: RankingRule[] = [{ key: 'score', direction: 'desc' }];
   for (const tb of tiebreakers) {
+    // The schema refuses any other variable; a config built in code without it
+    // still cannot rank on a column that does not exist.
+    if (!isTiebreakVariable(tb.variable)) continue;
     const key = TIEBREAK_COLUMN_BY_VARIABLE[tb.variable];
-    if (key && !chain.some((rule) => rule.key === key)) {
+    if (!chain.some((rule) => rule.key === key)) {
       chain.push({ key, direction: tb.direction });
     }
   }
@@ -220,6 +230,7 @@ export function buildFormulaScope(
     doubleHits: stats.doubleHits ?? 0,
     hitsGiven: stats.hitsGiven ?? 0,
     hitsReceived: stats.hitsReceived ?? 0,
+    pointsReceived: stats.pointsReceived ?? 0,
     pointsPerVictory: config.constants.pointsPerVictory,
     pointsPerTie: config.constants.pointsPerTie,
     pointsPerLoss: config.constants.pointsPerLoss,

@@ -1368,10 +1368,32 @@ export const admin = {
       doubleHits: 'Doubles',
       hitsGiven: 'Touches données',
       hitsReceived: 'Touches reçues',
+      pointsReceived: 'Points reçus',
       pointsPerVictory: 'Points par victoire',
       pointsPerTie: 'Points par égalité',
       pointsPerLoss: 'Points par défaite',
       doublePenalty: 'Pénalité double',
+    },
+    variableMeaningsTitle: 'Ce que veut dire chaque mot',
+    // One plain sentence per formula variable, shown under the formula editor.
+    variableMeaning: {
+      victories: 'Le nombre de combats gagnés par le combattant.',
+      ties: 'Le nombre de combats finis sur une égalité.',
+      losses: 'Le nombre de combats perdus par le combattant.',
+      doubleHits:
+        'Le nombre de doubles auxquels le combattant a pris part. Chaque double compte pour les deux combattants.',
+      hitsGiven:
+        'Les points marqués par les touches du combattant, selon la valeur de chaque cible. Une touche profonde qui vaut 2 ajoute 2.',
+      hitsReceived:
+        'Le nombre de fois où le combattant a été touché. Une touche profonde compte une fois, quelle que soit sa valeur. Une contre-frappe compte comme une touche sur le combattant qui a frappé en premier.',
+      pointsReceived:
+        'Les points marqués sur le combattant par les touches adverses, selon la valeur de chaque cible. Une touche profonde qui vaut 2 ajoute 2.',
+      pointsPerVictory:
+        'Un nombre fixé dans Constantes, le même pour tous. Multipliez les Victoires par ce nombre pour donner son poids à chaque victoire.',
+      pointsPerTie: 'Un nombre fixé dans Constantes, le même pour tous, pour chaque égalité.',
+      pointsPerLoss: 'Un nombre fixé dans Constantes, le même pour tous, pour chaque défaite.',
+      doublePenalty:
+        'Ce que coûtent les doubles du combattant. La valeur vient de la section Pénalité de double touche, ou de la constante Pénalité double quand cette section est vide.',
     },
     versionHistoryTitle: 'Historique des versions',
     versionHistoryEmpty: 'Aucune version publiée pour le moment.',

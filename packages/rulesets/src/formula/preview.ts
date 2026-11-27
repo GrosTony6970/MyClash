@@ -37,10 +37,42 @@ export interface FormulaScoringPreview {
  * (high-activity) row probes arithmetic overflow from pathological constants.
  */
 export const DEFAULT_PREVIEW_SAMPLES: readonly DerivedFighterStats[] = [
-  { victories: 3, ties: 1, losses: 0, doubleHits: 1, hitsGiven: 15, hitsReceived: 6 },
-  { victories: 2, ties: 1, losses: 2, doubleHits: 2, hitsGiven: 12, hitsReceived: 12 },
-  { victories: 0, ties: 1, losses: 4, doubleHits: 3, hitsGiven: 6, hitsReceived: 18 },
-  { victories: 20, ties: 4, losses: 4, doubleHits: 10, hitsGiven: 120, hitsReceived: 80 },
+  {
+    victories: 3,
+    ties: 1,
+    losses: 0,
+    doubleHits: 1,
+    hitsGiven: 15,
+    hitsReceived: 5,
+    pointsReceived: 6,
+  },
+  {
+    victories: 2,
+    ties: 1,
+    losses: 2,
+    doubleHits: 2,
+    hitsGiven: 12,
+    hitsReceived: 9,
+    pointsReceived: 12,
+  },
+  {
+    victories: 0,
+    ties: 1,
+    losses: 4,
+    doubleHits: 3,
+    hitsGiven: 6,
+    hitsReceived: 14,
+    pointsReceived: 18,
+  },
+  {
+    victories: 20,
+    ties: 4,
+    losses: 4,
+    doubleHits: 10,
+    hitsGiven: 120,
+    hitsReceived: 65,
+    pointsReceived: 80,
+  },
 ];
 
 /** Non-finite sinks to the bottom so ranking stays stable in the reject case. */

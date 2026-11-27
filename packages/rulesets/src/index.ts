@@ -148,6 +148,7 @@ export {
   TiebreakerSchema,
   createFormulaRuleset,
   buildFormulaScope,
+  TIEBREAK_VARIABLES,
   type RulesetGrammar,
   deriveFighterStats,
   evaluateFormula,
