@@ -72,9 +72,12 @@ New fields on `MatchFormatConfig`, mirroring the existing per-phase shape of `be
   falling back to `pool` exactly like `bestOf.swiss`. Read only in `venues` mode.
 - `stopWhenDecided: boolean` — default `true`. Read only in `venues` mode.
 
-In `venues` mode `pointCap` is not read (hidden in the editor). `scoringDirection:
-'reverse_zero_loses'` together with `venues` is refused by validation (a countdown has no
-meaning when the score is a venue count). _(builder's call to confirm)_
+In `venues` mode `pointCap` is not read (hidden in the editor). A venues bout always counts
+up: `normalizeMatchFormatConfig` resolves `scoringDirection` to `'normal'` when `scoringUnit`
+is `'venues'`, so every reader of a resolved format (the engine, the pad's `scoreOnPad`,
+`bout-flow.ts`) sees one answer, and the editors hide the direction select in venues mode. A
+write-time refusal was rejected: the API's `matchFormatSchema` is a partial PATCH shape and
+`MatchFormatConfigSchema.shape` is read elsewhere, so neither can carry a cross-field refine.
 
 The field lives in the THREE places that must agree (see memory `reference_best_of_rounds`):
 `@myclash/rules` `MatchFormatConfig` interface, `@myclash/rulesets` `MatchFormatConfigSchema`
@@ -120,9 +123,11 @@ In venues mode, with `remaining = N − (redVenuesWon + blueVenuesWon)`:
 
 - **stopWhenDecided = true**: the round ends when `|redScore − blueScore| > remaining`.
 - **stopWhenDecided = false**: the round ends when `remaining = 0`.
-- Ended round: the leader on score wins. Level at `remaining = 0` (only possible with an even N,
-  or with card points) → the phase's existing level-at-time chain (pool draw; bracket/finals
-  extra time then sudden death).
+- Ended round: the leader on score wins. A level board when the round ends (only possible with
+  an even N, or with card points) follows the rule a level board at the point cap follows
+  (`pointCapEndsBout`): a phase whose chain allows a level end (`chainAllowsLevelEnd`, a pool's
+  `draw`) ends it as a draw; any other phase keeps the round open, and the next won venue puts
+  someone ahead and ends it.
 - New end reason `'venue_limit'` added to `RoundEvaluation.endReason`, `MatchEndDecision.reason`
   and the winner branch in `endWinnerRegistrationId` (`scoring.service.ts:644-660`), AND every
   other list that names `'first_to_points'`: `matches/correction-outcome.ts:70`,
@@ -144,10 +149,13 @@ The organiser sets the time limit as today.
 
 In venues mode the pad shows one "Touch" button per side instead of the target buttons; the
 afterblow, double and no-exchange actions stay (an afterblow is still recorded, it just wins no
-venue). Today buttons come from `buildScoringButtons` (`packages/types/src/scoring-config.ts:328`),
-seeded once into `tournaments.scoring_config_json.buttons` at Tournament creation
-(`apps/api/src/modules/events/ruleset-defaults.ts:240-262`); switching a Tournament's match
-format to or from venues must re-derive them. A clean hit is stored with value 1. The server
+venue). Buttons are seeded once into `tournaments.scoring_config_json.buttons` at Tournament
+creation (`buildScoringButtons`, `packages/types/src/scoring-config.ts:328`). Venues mode does
+not re-seed them: the pad derives its buttons AT READ through one function, `buttonsInForce`,
+called in `rulesOnPad` (`apps/web-staff/src/lib/bout-rules.ts`), the one place the pad gets its
+buttons and its match format. Switching the mode back and forth therefore needs no write. The
+button is labelled `+1` like every other clean button (no new word to translate). A clean hit is
+stored with value 1. The server
 still prices a venues-mode clean hit as 1 whatever value arrives (a pad holding stale buttons
 cannot inflate a score), so `targetPoints`, `timesHit`, the stored deltas, the standings
 (`formula/derive-stats.ts:66-68`, TF_v1 ranking) and the public stats views all read 1 per venue
@@ -179,9 +187,9 @@ with no view migration.
    "lead > remaining venues", so a card can decide a round early.
 2. **N per phase**, mirroring `bestOf` (e.g. pool 5 single round, finals Bo3 of 5).
 3. **Default N = 5, early stop on.**
-4. **Any positive N is allowed**, even values; an even N can end level, which goes to the
-   existing level chain.
-5. **Countdown scoring + venues is refused** at validation.
+4. **Any positive N is allowed**, even values; an even N can end level: a draw in a pool, and
+   the next won venue decides it elsewhere.
+5. **A venues bout always counts up**; the countdown direction is resolved away, not refused.
 6. **Afterblow mode is ignored** in venues mode (an afterblow is never a won venue).
 7. **Venues mode is available wherever the match format is editable** (TF_v1 copies, club
    formula rulesets, a Tournament's match format). Built-in TF_v1's defaults stay `points`, so
