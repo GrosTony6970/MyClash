@@ -29,6 +29,86 @@ function buildService(supabase: object): FightersService {
   return new FightersService(supabase as never, {} as never, {} as never);
 }
 
+/**
+ * A fighter (red, `reg-002`) with ONE bout against `opp-reg-002`, whose result columns the test
+ * sets. `projection()` is what the history asked of `matches`.
+ */
+const HISTORY_REG: Row = {
+  id: 'reg-002',
+  tournament_id: 't-002',
+  tournaments: {
+    id: 't-002',
+    name: 'Longsword Open',
+    weapon: 'Longsword',
+    status: 'completed',
+    events: {
+      id: 'evt-002',
+      status: 'completed',
+      name: 'HEMA Fest 2026',
+      start_date: '2026-06-01',
+      end_date: null,
+    },
+  },
+};
+
+/** The `matches` read chain of the history, answering with one bout of `reg-002`. */
+function historyMatches(result: Row): object {
+  const bout: Row = {
+    id: 'm-002',
+    scheduled_at: '2026-06-01T10:00:00Z',
+    created_at: '2026-06-01T09:00:00Z',
+    red_registration_id: 'reg-002',
+    blue_registration_id: 'opp-reg-002',
+    phases: { tournament_id: 't-002' },
+    ...result,
+  };
+  const range = () => Promise.resolve({ data: [bout], error: null, count: 1 });
+  return { or: () => ({ neq: () => ({ order: () => ({ order: () => ({ range }) }) }) }) };
+}
+
+function oneBoutHistory(result: Row): { stub: object; projection: () => string } {
+  const oppRegId = 'opp-reg-002';
+  const registration = HISTORY_REG;
+  const matches = historyMatches(result);
+  let matchesProjection = '';
+  const stub = {
+    service: {
+      from: withNoRoster((table: string) => {
+        if (table === 'global_persons') {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({ data: { id: 'fighter-uuid-002' }, error: null }),
+              }),
+            }),
+          };
+        }
+        if (table === 'registrations') {
+          return {
+            select: () => ({
+              eq: () => ({ data: [registration], error: null, then: undefined }),
+              in: () => ({
+                data: [{ id: oppRegId, persons: { global_persons: { display_name: 'Opp' } } }],
+                error: null,
+              }),
+            }),
+          };
+        }
+        if (table === 'matches') {
+          return {
+            select: (cols: string) => {
+              matchesProjection = cols;
+              return matches;
+            },
+          };
+        }
+        return { select: () => ({}) };
+      }),
+    },
+  };
+  return { stub, projection: () => matchesProjection };
+}
+
 describe('FightersService.listMatchesPaginated', () => {
   it('returns matches in reverse chronological order with correct shape', async () => {
     const fighterId = 'fighter-uuid-001';
@@ -166,88 +246,15 @@ describe('FightersService.listMatchesPaginated', () => {
    * green while PostgREST would simply stop returning the column.
    */
   it('reads a doubles-ceiling bout as a loss, and asks for the column that says so', async () => {
-    const fighterId = 'fighter-uuid-002';
-    const regId = 'reg-002';
-    const oppRegId = 'opp-reg-002';
-    let matchesProjection = '';
-
-    const registration: Row = {
-      id: regId,
-      tournament_id: 't-002',
-      tournaments: {
-        id: 't-002',
-        name: 'Longsword Open',
-        weapon: 'Longsword',
-        status: 'completed',
-        events: {
-          id: 'evt-002',
-          status: 'completed',
-          name: 'HEMA Fest 2026',
-          start_date: '2026-06-01',
-          end_date: null,
-        },
-      },
-    };
-    const ceilingMatch: Row = {
-      id: 'm-002',
+    const history = oneBoutHistory({
       status: 'completed',
-      scheduled_at: '2026-06-01T10:00:00Z',
-      created_at: '2026-06-01T09:00:00Z',
-      red_registration_id: regId,
-      blue_registration_id: oppRegId,
       winner_registration_id: null,
       end_reason: 'max_doubles',
       red_score: 0,
       blue_score: 0,
-      phases: { tournament_id: 't-002' },
-    };
+    });
 
-    const supabaseStub = {
-      service: {
-        from: withNoRoster((table: string) => {
-          if (table === 'global_persons') {
-            return {
-              select: () => ({
-                eq: () => ({ maybeSingle: async () => ({ data: { id: fighterId }, error: null }) }),
-              }),
-            };
-          }
-          if (table === 'registrations') {
-            return {
-              select: () => ({
-                eq: () => ({ data: [registration], error: null, then: undefined }),
-                in: () => ({
-                  data: [{ id: oppRegId, persons: { global_persons: { display_name: 'Opp' } } }],
-                  error: null,
-                }),
-              }),
-            };
-          }
-          if (table === 'matches') {
-            return {
-              select: (cols: string) => {
-                matchesProjection = cols;
-                return {
-                  or: () => ({
-                    neq: () => ({
-                      order: () => ({
-                        order: () => ({
-                          range: () =>
-                            Promise.resolve({ data: [ceilingMatch], error: null, count: 1 }),
-                        }),
-                      }),
-                    }),
-                  }),
-                };
-              },
-            };
-          }
-          return { select: () => ({}) };
-        }),
-      },
-    };
-
-    const result = await buildService(supabaseStub).listMatchesPaginated('some-slug', {
+    const result = await buildService(history.stub).listMatchesPaginated('some-slug', {
       limit: 20,
       offset: 0,
     });
@@ -255,7 +262,27 @@ describe('FightersService.listMatchesPaginated', () => {
     expect(result.items[0]?.outcome).toBe('loss');
     // The canned stub answers with `end_reason` whether or not the query asked
     // for it, so the projection has to be asserted directly.
-    expect(matchesProjection).toContain('end_reason');
+    expect(history.projection()).toContain('end_reason');
+  });
+
+  it('gives a bout still in play no result, whoever leads', async () => {
+    // The history lists every bout that started. A running 3-1 bout used to read W for the
+    // fighter ahead; it has a score, not a result.
+    const history = oneBoutHistory({
+      status: 'running',
+      winner_registration_id: null,
+      end_reason: null,
+      red_score: 3,
+      blue_score: 1,
+    });
+
+    const result = await buildService(history.stub).listMatchesPaginated('some-slug', {
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(result.items[0]?.outcome).toBeNull();
+    expect(result.items[0]?.ourScore).toBe(3);
   });
 
   it('listMatchesPaginated respects limit + offset', async () => {

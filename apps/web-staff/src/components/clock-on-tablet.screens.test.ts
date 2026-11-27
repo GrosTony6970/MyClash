@@ -191,8 +191,11 @@ describe('"End match" on the tablet', () => {
       "{rounds.map((round) => `${round.redScore} – ${round.blueScore}`).join(' · ')}",
     );
     // Not confirmed: the winner the End was pressed on, where the board names
-    // none (both at zero in a bout that counts down). Never for a series.
-    expect(view).toContain('const ownWinner = seriesDecided ? undefined : ownResult.winner;');
+    // none (both at zero in a bout that counts down). A series: the winner its
+    // rounds decided, never a guess from the round wins shown as a score.
+    expect(view).toMatch(
+      /const ownWinner = seriesDecided\s+\? \(series\.decided\?\.winnerColor \?\? undefined\)\s+: ownResult\.winner;/,
+    );
     expect(view).toMatch(
       /const ownWinnerId =\s+ownWinner === 'red'\s+\? match\.redRegistrationId\s+: ownWinner === 'blue'\s+\? match\.blueRegistrationId\s+: null;/,
     );

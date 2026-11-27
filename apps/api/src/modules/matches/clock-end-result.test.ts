@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ClockService } from './clock.service';
-import { timeLimitResult } from './time-limit-result';
+import { isLevelBout, timeLimitResult } from './time-limit-result';
 
 /**
  * What the `end` clock action RECORDS.
@@ -205,8 +205,6 @@ describe('ClockService — what ending the clock records', () => {
       'red_score',
       'blue_score',
       'red_registration_id',
-      // The decided test is the LADDER, not the scores.
-      'winner_registration_id',
       'phases(',
       // The format the bout is decided by: its copy of its rules, not its Tournament's of now.
       'match_rules(ruleset_code, ruleset_version, ruleset_config',
@@ -383,6 +381,24 @@ describe('timeLimitResult', () => {
     expect(timeLimitResult(bout(), 0, ELAPSED_ZERO)).toEqual({
       complete: { winner_registration_id: 'red', end_reason: 'time_limit' },
     });
+  });
+
+  it('reads the board of a bout in play, never a winner left on its row', () => {
+    // A bout in play holds no winner (ruling 331). The End asks who LEADS, from
+    // the score: a stale winner must not decide a time-out the board does not.
+    expect(timeLimitResult(bout({ winner_registration_id: 'blue' }), 0, ELAPSED_ZERO)).toEqual({
+      complete: { winner_registration_id: 'red', end_reason: 'time_limit' },
+    });
+  });
+
+  it('reads a level board with no winner as level, and one that carries a winner as decided', () => {
+    // Both halves are read on their own, never the winner through the score: the
+    // level steps refuse a 0-0 forfeit under a zeroing score policy.
+    expect(isLevelBout(bout({ red_score: 2, blue_score: 2 }))).toBe(true);
+    expect(isLevelBout(bout({ red_score: 0, blue_score: 0, winner_registration_id: 'blue' }))).toBe(
+      false,
+    );
+    expect(isLevelBout(bout({ red_score: 3, blue_score: 1 }))).toBe(false);
   });
 
   it('follows the phase, not the label, for pool and swiss', () => {

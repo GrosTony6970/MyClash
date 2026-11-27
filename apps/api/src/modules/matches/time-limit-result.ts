@@ -8,10 +8,10 @@
  */
 import {
   getEffectiveBestOf,
+  leadingColor,
   normalizeMatchFormatConfig,
   pendingLevelStep,
   timeIsFinished,
-  winnerColorFrom,
 } from '@myclash/rulesets';
 import type { LevelStep, Match, MatchFormatConfig } from '@myclash/rulesets';
 import { asRow, boutRulesOf } from './bout-rules';
@@ -42,17 +42,28 @@ export function matchFormatContext(match: Record<string, unknown>): MatchFormatC
   };
 }
 
-/** Is the bout undecided — no recorded winner and nobody ahead on the board? */
+/**
+ * Who is ahead on the board of a bout still in play, or null when level.
+ *
+ * A LIVE question, asked of the score. A running bout holds no winner (ruling 331 clears it when
+ * a bout goes back in play), so "who won" has no answer yet; asking it through `winnerColorFrom`
+ * only worked while that fell back to the score, which a finished bout's result must not do.
+ */
+function boardLeader(match: Record<string, unknown>): 'red' | 'blue' | null {
+  return leadingColor({
+    redScore: Number(match['red_score'] ?? 0),
+    blueScore: Number(match['blue_score'] ?? 0),
+  });
+}
+
+/**
+ * Is a bout in play level — no recorded winner, and nobody ahead on the board?
+ *
+ * The winner is checked on its own, never through the score: 0-0 with a recorded winner is a
+ * forfeit under a zeroing score policy, decided though it looks level (the level steps refuse it).
+ */
 export function isLevelBout(match: Record<string, unknown>): boolean {
-  return (
-    winnerColorFrom({
-      winnerRegistrationId: (match['winner_registration_id'] as string | null) ?? null,
-      redRegistrationId: (match['red_registration_id'] as string | null) ?? null,
-      blueRegistrationId: (match['blue_registration_id'] as string | null) ?? null,
-      redScore: Number(match['red_score'] ?? 0),
-      blueScore: Number(match['blue_score'] ?? 0),
-    }) === null
-  );
+  return !match['winner_registration_id'] && boardLeader(match) === null;
 }
 
 /**
@@ -134,14 +145,8 @@ export function timeLimitResult(
   // `time_limit` over the reason the bout really ended with.
   if (match['status'] === 'completed') return { complete: {} };
 
-  if (!isLevelBout(match)) {
-    const leader = winnerColorFrom({
-      winnerRegistrationId: (match['winner_registration_id'] as string | null) ?? null,
-      redRegistrationId: (match['red_registration_id'] as string | null) ?? null,
-      blueRegistrationId: (match['blue_registration_id'] as string | null) ?? null,
-      redScore: Number(match['red_score'] ?? 0),
-      blueScore: Number(match['blue_score'] ?? 0),
-    });
+  const leader = boardLeader(match);
+  if (leader !== null) {
     return {
       complete: {
         winner_registration_id:

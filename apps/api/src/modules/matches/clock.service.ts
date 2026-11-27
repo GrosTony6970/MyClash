@@ -153,13 +153,13 @@ interface ClockStep {
 
 // The scores and the bout's match format (its copy of its rules) are here so `end` can NAME
 // the winner of a bout that ran out of time — see `timeLimitResult`.
-// `status` is there because a bout already completed is not decided
-// again, and `winner_registration_id` because the decision reads the
-// LADDER, not the scores. The Event's status is for a press sent late, and the bout's copies of
-// its rules for a Start that names the copy its pad showed (`startCopyOf`).
+// `status` is there because a bout already completed is not decided again. A bout in play holds
+// no winner (ruling 331), so the decision reads the board alone. The Event's status is for a press
+// sent late, and the bout's copies of its rules for a Start that names the copy its pad showed
+// (`startCopyOf`).
 export const BOUT_COLUMNS =
   'id, status, locked_at, match_rules_id, earlier_rules_ids, rounds_json, current_round, ' +
-  'red_registration_id, blue_registration_id, winner_registration_id, ' +
+  'red_registration_id, blue_registration_id, ' +
   'red_score, blue_score, match_number_label, awaiting_round_advance, back_in_play_at, ' +
   'phases(type, tournaments(events(status))), ' +
   BOUT_RULES;

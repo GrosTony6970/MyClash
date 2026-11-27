@@ -40,9 +40,17 @@ the fallback as "who leads"; they move to `leadingColor`:
 
 - `apps/api/src/modules/matches/time-limit-result.ts:46-56` (`isLevelBout`) and `:137-151`, which also
   serve `level-step.ts:153` and `scoring.service.ts:1486` (`sheetEnds`);
-- `packages/ui/src/components/TVScoreboard.tsx:596-621` (clock ended, row not yet completed);
 - `apps/web-staff/src/components/MatchResultOverlay.tsx:133`: the tablet passes the series winner it
   computed (`MatchView.tsx:595-617`), not a fake `completed` status.
+- The fighter's match history (`fighters.service.ts` `listMatchesPaginated`, which lists running and
+  voided bouts too): a bout not finished has no outcome, and the modal shows no W/D/L for it.
+- "Is it level" (`isLevelBout`) reads a recorded winner and the board each on its own: the level
+  steps still refuse a 0-0 forfeit under a zeroing policy. The clock's End reads the board only, so
+  its select stops fetching `winner_registration_id`.
+
+Left as it is: `packages/ui/src/components/TVScoreboard.tsx:596-621` asks for the winner once the
+clock ends. After R3 it shows the stored winner, which arrives with the completed row a moment later;
+guessing the leader in that moment could crown the wrong fighter (a forfeit wins on the lower score).
 
 **R2 — every path that finishes a bout stores its result.**
 
@@ -57,8 +65,7 @@ the fallback as "who leads"; they move to `leadingColor`:
   `max_doubles_draw` with no winner, and R3 makes every reader call that a draw, as TF_v1 does today.
 
 **R3 — the fallback goes.** `winnerColorFrom` (and through it `boutOutcomes`) and `winnerLoser` read the
-winner only. The fighter history (`fighters.service.ts:1062`, which includes running bouts) gives a
-running bout no outcome. Six tests that pin the fallback change (`bout-outcomes.test.ts`,
+winner only. Six tests that pin the fallback change (`bout-outcomes.test.ts`,
 `match-winner.test.ts`, `recent-matches.test.ts`, `fighter-career.test.ts`,
 `correction-outcome.test.ts`, `tournament-data.test.ts`), with the comments and ARCHITECTURE lines
 (§ near 864 and 972) that say the fallback must stay.

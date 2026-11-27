@@ -591,8 +591,10 @@ export function MatchView({
   const unconfirmed = resultUnconfirmed(match.status, boutClock?.status ?? 'idle');
   const ownResult = tabletResult(padClock.endScore, pressedOn(series, matchFormat, match, edition));
   // A board at 0 - 0 that a fighter won (a bout that counts down): the
-  // tablet's own result names that fighter, as the server's row will.
-  const ownWinner = seriesDecided ? undefined : ownResult.winner;
+  // tablet's own result names that fighter, as the server's row will. A
+  // series decided here is won by its rounds (`series.decided`); naming it
+  // here means the result screen never has to guess a winner from a score.
+  const ownWinner = seriesDecided ? (series.decided?.winnerColor ?? undefined) : ownResult.winner;
   // Why the bout ended, for the result screen: the tablet's own reason while
   // its result is not confirmed (an End at the doubles limit), then the
   // server's. A decided series says its rounds, never its last round's reason.

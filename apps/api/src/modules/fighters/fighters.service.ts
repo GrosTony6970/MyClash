@@ -94,7 +94,8 @@ export interface MatchSummary {
   opponentName: string;
   ourScore: number;
   opponentScore: number;
-  outcome: 'win' | 'loss' | 'draw';
+  /** Null while the bout is not finished: a bout in play has no result yet, only a score. */
+  outcome: 'win' | 'loss' | 'draw' | null;
   status: string;
 }
 
@@ -1059,17 +1060,22 @@ export class FightersService {
       const oppScore =
         myRegId === redId ? Number(match['blue_score'] ?? 0) : Number(match['red_score'] ?? 0);
 
-      const outcome = deriveMatchOutcome(
-        {
-          winnerRegistrationId: winnerRegId,
-          redRegistrationId: redId,
-          blueRegistrationId: blueId,
-          redScore: Number(match['red_score'] ?? 0),
-          blueScore: Number(match['blue_score'] ?? 0),
-          endReason: (match['end_reason'] as string | null) ?? null,
-        },
-        myRegId === redId ? 'red' : 'blue',
-      );
+      // The list holds every bout that started, running and voided ones too: only a finished one
+      // has a result. A running bout used to read W for whoever led.
+      const outcome =
+        match['status'] === 'completed'
+          ? deriveMatchOutcome(
+              {
+                winnerRegistrationId: winnerRegId,
+                redRegistrationId: redId,
+                blueRegistrationId: blueId,
+                redScore: Number(match['red_score'] ?? 0),
+                blueScore: Number(match['blue_score'] ?? 0),
+                endReason: (match['end_reason'] as string | null) ?? null,
+              },
+              myRegId === redId ? 'red' : 'blue',
+            )
+          : null;
 
       const phase = match['phases'] as Row | null;
       return {
