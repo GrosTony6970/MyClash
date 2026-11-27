@@ -30,15 +30,24 @@ describe('boutOutcomes', () => {
     );
   });
 
-  it('falls back to the score when no winner is recorded', () => {
+  it('reads a bout with no recorded winner as a draw, whatever the board says', () => {
+    // Every path that finishes a bout stores its result (spec
+    // 2026-11-27-bout-result-is-stored). The score fallback that stood here made
+    // the W column disagree with TF_v1's score on the few that did not.
     expect(boutOutcomes(bout({ redScore: 5, blueScore: 3 }))).toEqual({
-      red: 'win',
-      blue: 'loss',
+      red: 'draw',
+      blue: 'draw',
     });
     expect(boutOutcomes(bout({ redScore: 4, blueScore: 4 }))).toEqual({
       red: 'draw',
       blue: 'draw',
     });
+  });
+
+  it('keeps a doubles-limit draw a draw when a card moves the board after it (ruling 1009)', () => {
+    expect(
+      boutOutcomes(bout({ endReason: 'max_doubles_draw', redScore: 0, blueScore: -1 })),
+    ).toEqual({ red: 'draw', blue: 'draw' });
   });
 
   it('calls the doubles ceiling a LOSS FOR BOTH', () => {
@@ -72,14 +81,14 @@ describe('boutOutcomes', () => {
 });
 
 describe('winnerColorFrom', () => {
-  it('is the ladder resolveMatchWinner delegates to', () => {
+  it('is the stored winner resolveMatchWinner delegates to, and nothing else', () => {
     expect(winnerColorFrom(bout({ winnerRegistrationId: 'blue', redScore: 9 }))).toBe('blue');
-    expect(winnerColorFrom(bout({ redScore: 3, blueScore: 1 }))).toBe('red');
+    expect(winnerColorFrom(bout({ redScore: 3, blueScore: 1 }))).toBeNull();
     expect(winnerColorFrom(bout({ redScore: 1, blueScore: 1 }))).toBeNull();
     expect(winnerColorFrom(bout({ winnerRegistrationId: 'nobody' }))).toBeNull();
   });
 
-  it('treats absent scores as zero, so an unplayed bout is not a win', () => {
+  it('names nobody for a bout with no winner', () => {
     expect(winnerColorFrom({ redRegistrationId: 'red', blueRegistrationId: 'blue' })).toBeNull();
   });
 });

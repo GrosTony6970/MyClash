@@ -73,8 +73,6 @@ export function deriveFighterStats(
       winnerRegistrationId: match.winnerRegistrationId,
       redRegistrationId: match.redRegistrationId,
       blueRegistrationId: match.blueRegistrationId,
-      redScore: match.redScore,
-      blueScore: match.blueScore,
       endReason: match.endReason,
     })[isRed ? 'red' : 'blue'];
     if (outcome === 'win') stats.victories += 1;

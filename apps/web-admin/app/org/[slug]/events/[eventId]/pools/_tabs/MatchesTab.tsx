@@ -586,8 +586,6 @@ export function MatchesTab({
                           winnerRegistrationId: m.winner_registration_id,
                           redRegistrationId: m.red_registration_id,
                           blueRegistrationId: m.blue_registration_id,
-                          redScore: m.red_score,
-                          blueScore: m.blue_score,
                         });
                         const isRedWinner = winnerSide === 'red';
                         const isBlueWinner = winnerSide === 'blue';

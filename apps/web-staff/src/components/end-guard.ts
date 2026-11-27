@@ -93,12 +93,12 @@ export function levelBoardWinner(
  * has given the bout or the round to, when it has. In a bout that counts down
  * with both fighters out of points the board does not name that fighter: it
  * reads 0 - 0, or 0 and -1 after a card, for the one who is less far below.
- * With no winner here, the result reads its leader from the two numbers.
+ * With no winner here, `tabletWinner` reads its leader from the two numbers.
  *
  * At the doubles limit it is the format's outcome: the reason, and the board
  * that outcome leaves. A format that wipes the board leaves 0 - 0 and nobody;
- * "the result stands" leaves the board, whose leader the result reads from the
- * two numbers as for any End.
+ * "the result stands" leaves the board, whose leader `tabletWinner` reads from
+ * the two numbers as for any End.
  */
 export function pressedOn(
   score: EndBoard,

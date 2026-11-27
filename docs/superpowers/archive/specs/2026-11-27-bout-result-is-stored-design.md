@@ -1,6 +1,7 @@
 # A finished bout's result is what it stored
 
-Status: proposed, 2026-11-27. Follows rulings 1005-1008 (a copy of TF_v1 is a formula).
+Status: shipped 2026-11-27 (R1 `8beee0abd`, R2 `90fc5e29e`, R3 the commit that archived this).
+Follows rulings 1005-1008 (a copy of TF_v1 is a formula).
 
 ## The problem
 

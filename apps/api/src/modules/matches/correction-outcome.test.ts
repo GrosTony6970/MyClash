@@ -92,13 +92,19 @@ describe('correctionOutcome — an over Event', () => {
     });
   });
 
-  it('reads a winner-less bout from before the clock named winners off its board', () => {
-    // 5-4 with no stored winner already reads as a win for Red, so 5-3 changes nothing.
-    const old = input({
+  it('names the leader when a correction breaks a draw the clock stored', () => {
+    // A `time_limit` bout with no winner is a draw, whatever its board: the
+    // stored result decides, never the score (spec 2026-11-27-bout-result-is-stored).
+    // A correction that puts Red ahead gives Red the bout.
+    const drawn = input({
       bout: { winnerRegistrationId: null },
       score: { redScore: 5, blueScore: 3 },
     });
-    expect(correctionOutcome(old)).toEqual({ kind: 'unchanged' });
+    expect(correctionOutcome(drawn)).toEqual({
+      kind: 'redecide',
+      winnerRegistrationId: 'red',
+      endReason: 'time_limit',
+    });
   });
 
   it('a bout the clock ended as a draw stores its reason, and follows a correction', () => {

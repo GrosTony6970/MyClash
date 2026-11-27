@@ -4,8 +4,6 @@ import { resolveMatchWinner } from './match-winner';
 const base = {
   redRegistrationId: 'red-reg',
   blueRegistrationId: 'blue-reg',
-  redScore: 5,
-  blueScore: 3,
 };
 
 describe('resolveMatchWinner', () => {
@@ -24,81 +22,30 @@ describe('resolveMatchWinner', () => {
     ).toBe('blue');
   });
 
-  it('trusts the stored winner even when it contradicts the score (reverse rulesets)', () => {
-    // Blue has the higher score but Red is the stored winner (reverse ruleset).
+  it('names nobody when no winner is stored: a draw, or a loss for both', () => {
+    // The score is not an input any more. A finished bout with no winner is a
+    // draw (or a doubles-limit loss for both); the fallback to the higher score
+    // named the leader of a bout the doubles limit had called a draw (ruling 1009).
     expect(
-      resolveMatchWinner({
-        ...base,
-        redScore: 0,
-        blueScore: 7,
-        status: 'completed',
-        winnerRegistrationId: 'red-reg',
-      }),
-    ).toBe('red');
-  });
-
-  it('crowns the fighter BEHIND on points when the record says so', () => {
-    // The whole reason this function exists. A referee_decision override, a
-    // walkover, or a keep-current injury forfeit all award the bout to someone
-    // who is losing on points — the eight surfaces that compared the two
-    // numbers each announced the wrong name.
-    expect(
-      resolveMatchWinner({
-        ...base,
-        redScore: 1,
-        blueScore: 5,
-        status: 'completed',
-        winnerRegistrationId: 'red-reg',
-      }),
-    ).toBe('red');
-  });
-
-  it('falls back to the higher score when no winner is stored (time-limit finish)', () => {
-    expect(resolveMatchWinner({ ...base, status: 'completed', winnerRegistrationId: null })).toBe(
-      'red',
-    );
-    expect(
-      resolveMatchWinner({
-        ...base,
-        redScore: 2,
-        blueScore: 4,
-        status: 'completed',
-        winnerRegistrationId: null,
-      }),
-    ).toBe('blue');
-  });
-
-  it('returns null on a tie / double-loss with no stored winner', () => {
-    expect(
-      resolveMatchWinner({
-        ...base,
-        redScore: 3,
-        blueScore: 3,
-        status: 'completed',
-        winnerRegistrationId: null,
-      }),
+      resolveMatchWinner({ ...base, status: 'completed', winnerRegistrationId: null }),
     ).toBeNull();
   });
 
   it('returns null when the stored winner matches neither side', () => {
-    // A mismatched pairing. Falling through to the score would invent a winner
-    // the record does not name.
+    // A mismatched pairing: the record names nobody in this bout.
     expect(
       resolveMatchWinner({ ...base, status: 'completed', winnerRegistrationId: 'someone-else' }),
     ).toBeNull();
   });
 
   it('tolerates the null-ish shapes the DTOs actually carry', () => {
-    // red_score/blue_score are nullable on `matches`, and several projections
-    // hand through `null` registration ids for an unresolved bracket slot.
+    // Several projections hand through `null` registration ids for an unresolved bracket slot.
     expect(
       resolveMatchWinner({
         status: 'completed',
         winnerRegistrationId: undefined,
         redRegistrationId: null,
         blueRegistrationId: null,
-        redScore: null,
-        blueScore: null,
       }),
     ).toBeNull();
   });

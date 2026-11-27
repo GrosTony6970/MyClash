@@ -776,7 +776,8 @@ Three things the contract used to declare and no longer does, because nothing ca
   because the field did. A ruleset validates its own config inside its own methods.
 - **`isMatchOver`'s `clockMs`**, and the `time_limit` branch both built-ins hung off it. The only
   production call passed a literal `0`, so that branch could never fire. A single fight that runs
-  out of time is completed by `ClockService`, which sets no winner and no end reason.
+  out of time is completed by `ClockService` (`timeLimitResult`), which stores the leader as
+  winner with `time_limit`, or no winner with `time_limit` for a draw.
 - **`computeFinalRanking?`** was implemented by no ruleset and called by nobody. The real
   final-ranking authority is a free function in `@myclash/rules`, and no ruleset influences it.
 
@@ -861,7 +862,7 @@ that `@myclash/rulesets` never becomes a dependency of `apps/web-staff` or
 | `displayClockMs` (`@myclash/rules`)                  | turn elapsed active time into the numeral on the clock                                                                                     |
 | `pointCapWinnerColor` (`@myclash/rules`)             | paint the score gold when a side reaches the cap                                                                                           |
 | `applyScoringDirection` (`@myclash/rules`)           | read a `reverse_zero_loses` score down from the cap, on the pad and the bout-flow chart                                                    |
-| `winnerColorFrom` (`@myclash/rules`)                 | name the winner on the end-of-clock overlay and the TV endcard — the ladder behind `resolveMatchWinner`, which the pad already calls       |
+| `winnerColorFrom` (`@myclash/rules`)                 | name the stored winner on the end-of-clock overlay and the TV endcard — the rule behind `resolveMatchWinner`, which the pad already calls  |
 | `pendingLevelStep` (`@myclash/rules`)                | name the remedy a LEVEL bout is waiting on — extra time, sudden death — on the button that applies it and the clock face that announces it |
 | `timeIsFinished` (`@myclash/rules`)                  | withhold that remedy button until the bout's time has actually run out — the same comparison the server refuses the End on                 |
 | `clockAfterPress` (`@myclash/rules`)                 | show the clock after a press the tablet still holds, by the rules the server replays the bout's clock rows with                            |
@@ -967,9 +968,10 @@ bonus, double penalty and targets, TF_v1's tie-breakers and afterblow rule. Unti
 and ranks exactly as TF_v1, which `tf_v1.as-formula.parity.test.ts` proves on the FAL 2026 data and
 on the afterblow golden bout. Three formula rules make that hold, for every club formula:
 `hitsReceived` is TF_v1's times-hit count (`pointsReceived` is the points those hits were worth),
-`x / 0 = x`, and the server's bout score counts the value of the button pressed. One difference is
-left: TF_v1 counts a win from the bout's winner, a formula from the bout's outcome
-(`boutOutcomes`); they differ only on a bout that ended with no winner but unequal scores.
+`x / 0 = x`, and the server's bout score counts the value of the button pressed. Both count a win
+from the bout's stored winner only: a finished bout's result is its stored winner and end reason,
+never its score (`winnerColorFrom`, `boutOutcomes`; spec
+`docs/superpowers/archive/specs/2026-11-27-bout-result-is-stored-design.md`, rulings 1009-1010).
 
 ### 7bis.3 A pin is a pointer, resolved at read time
 

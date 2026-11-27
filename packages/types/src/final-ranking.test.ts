@@ -113,6 +113,18 @@ describe('computeFinalRanking', () => {
     expect(ranking[0]?.registrationId).toBe('e');
     expect(ranking[1]?.registrationId).toBe('a');
   });
+
+  it('crowns nobody from a Final with no recorded winner, whoever leads on points', () => {
+    // A finished bout's result is its stored winner only (spec
+    // 2026-11-27-bout-result-is-stored): the 5-2 board of a Final with no winner
+    // names no champion. The score fallback that stood in `winnerLoser` did.
+    const { slots, bronzeId } = buildSlots();
+    const noWinner = slots.map((s) =>
+      s.round === 3 && s.position === 1 ? { ...s, winnerRegistrationId: null } : s,
+    );
+    const ranking = computeFinalRanking(noWinner, POOL, bronzeId);
+    expect(ranking.some((entry) => entry.resultKind === 'champion')).toBe(false);
+  });
 });
 
 // ── Double elimination ───────────────────────────────────────────────────────

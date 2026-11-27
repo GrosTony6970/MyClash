@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { derivePodium, type BracketSlot } from './tournament-data';
 
-/** A completed bout the red fighter won on points. Positions start at 1, as generated. */
+/**
+ * A completed bout the red fighter won on points, with the winner the server stores: the podium
+ * reads the stored winner, never the score. Positions start at 1, as generated.
+ */
 function bout(round: number, position: number, red: string, blue: string): BracketSlot {
   return {
     id: `r${round}-p${position}`,
@@ -9,9 +12,11 @@ function bout(round: number, position: number, red: string, blue: string): Brack
     position,
     redFighterName: red,
     blueFighterName: blue,
+    redRegistrationId: `reg-${red}`,
+    blueRegistrationId: `reg-${blue}`,
     redScore: 5,
     blueScore: 2,
-    winnerRegistrationId: null,
+    winnerRegistrationId: `reg-${red}`,
     status: 'completed',
     matchId: null,
   };

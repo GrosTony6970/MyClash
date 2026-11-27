@@ -438,8 +438,6 @@ export class PublicScheduleService {
                     winnerRegistrationId: (m['winner_registration_id'] as string | null) ?? null,
                     redRegistrationId: redReg,
                     blueRegistrationId: blueReg,
-                    redScore: (m['red_score'] as number) ?? 0,
-                    blueScore: (m['blue_score'] as number) ?? 0,
                     endReason: (m['end_reason'] as string | null) ?? null,
                   },
                   isRed ? 'red' : 'blue',

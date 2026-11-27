@@ -76,17 +76,20 @@ describe('evaluateFormula', () => {
 
 describe('createFormulaRuleset', () => {
   function makeMatch(id: string, red: string, blue: string, exchanges: Exchange[]): ScoredMatch {
+    // Only clean hits and doubles appear below, and a double has no striker, so
+    // counting strikers is the whole score. The bout stores its leader as the
+    // winner, as the server does when it ends one: the board alone decides nothing.
+    const redScore = exchanges.filter((e) => e.firstStrikerColor === 'red').length;
+    const blueScore = exchanges.filter((e) => e.firstStrikerColor === 'blue').length;
+    const winnerRegistrationId = redScore > blueScore ? red : blueScore > redScore ? blue : null;
     return {
       id,
       redRegistrationId: red,
       blueRegistrationId: blue,
       endReason: null,
-      // No winner, so the board decides — and here it says what the exchanges
-      // do. Only clean hits and doubles appear below, and a double has no
-      // striker, so counting strikers is the whole score.
-      winnerRegistrationId: null,
-      redScore: exchanges.filter((e) => e.firstStrikerColor === 'red').length,
-      blueScore: exchanges.filter((e) => e.firstStrikerColor === 'blue').length,
+      winnerRegistrationId,
+      redScore,
+      blueScore,
       exchanges,
     };
   }

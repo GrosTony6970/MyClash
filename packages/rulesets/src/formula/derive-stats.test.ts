@@ -71,6 +71,7 @@ describe('deriveFighterStats', () => {
         ],
         2,
         1,
+        'fighter-A',
       ),
       // m2: A scores 1, C scores 1 → tie
       bout(
@@ -93,6 +94,7 @@ describe('deriveFighterStats', () => {
         ],
         0,
         2,
+        'fighter-D',
       ),
     ];
 
@@ -172,15 +174,17 @@ describe('deriveFighterStats at the doubles ceiling', () => {
     });
   });
 
-  it('leaves the other two ceiling reasons to the board', () => {
-    // 'max_doubles_result_stands' keeps the board and a null reason is every
-    // ordinary bout, so both are decided by the stored score like anything else.
-    for (const reason of ['max_doubles_result_stands', null]) {
-      expect(deriveFighterStats('A', [ceilingBout(reason)], 'full')).toMatchObject({
-        victories: 1,
-        losses: 0,
-      });
-    }
+  it('leaves the other ceiling reasons to the stored winner, never the board', () => {
+    // 'max_doubles_result_stands' keeps the board, and the server stores its
+    // leader as the winner: that is what counts.
+    const stands = { ...ceilingBout('max_doubles_result_stands'), winnerRegistrationId: 'A' };
+    expect(deriveFighterStats('A', [stands], 'full')).toMatchObject({ victories: 1, losses: 0 });
+    // No winner stored is a draw, though red is one hit ahead (spec
+    // 2026-11-27-bout-result-is-stored): the board decides nothing on its own.
+    expect(deriveFighterStats('A', [ceilingBout(null)], 'full')).toMatchObject({
+      victories: 0,
+      ties: 1,
+    });
   });
 });
 

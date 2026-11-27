@@ -110,7 +110,7 @@ export interface BoutNames {
  * What an End was pressed on: the score on the screen at the tap. `winner` is
  * the fighter the point cap gave the bout or the round to, when it gave it
  * (`pressedOn`): in a bout that counts down with both fighters out of points,
- * the two numbers do not name that fighter. With none, the result reads its
+ * the two numbers do not name that fighter. With none, `tabletWinner` reads its
  * leader from the two numbers.
  *
  * `endReason`: the End was pressed on a bout at its doubles limit, and this is

@@ -616,8 +616,6 @@ function CenterColumn({
       winnerRegistrationId: match.winnerRegistrationId,
       redRegistrationId: match.redRegistrationId,
       blueRegistrationId: match.blueRegistrationId,
-      redScore: match.redScore,
-      blueScore: match.blueScore,
     });
     if (side === null) return null;
     return { side, name: side === 'red' ? redName : blueName };
@@ -626,8 +624,6 @@ function CenterColumn({
     match.winnerRegistrationId,
     match.redRegistrationId,
     match.blueRegistrationId,
-    match.redScore,
-    match.blueScore,
     redName,
     blueName,
   ]);

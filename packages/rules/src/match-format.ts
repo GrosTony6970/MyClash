@@ -379,38 +379,37 @@ export function isDoubleLossBout(endReason: string | null | undefined): boolean 
 }
 
 /**
- * Which side won, from the bout's own columns. The ladder, and nothing else.
+ * Which side won a finished bout: its stored winner, and nothing else.
  *
  * A recorded `winner_registration_id` decides, never the scores: a forfeit, a
  * walkover or a referee override can award a bout to the fighter BEHIND on
  * points, which is the canonical reason explicit scores exist at all.
  *
- * The score fallback below it is deliberate. A completed bout with no stored
- * winner is ordinary rather than exotic — it is every genuine draw, and it was
- * every time-limit bout until the clock started naming its own winner.
+ * No stored winner is no winner: a draw, or a loss for both (the caller reads
+ * `isDoubleLossBout`). There used to be a score fallback here, for bouts the
+ * clock completed with no winner. Every path that finishes a bout now stores its
+ * result (spec 2026-11-27-bout-result-is-stored), and the fallback made the W
+ * column and TF_v1's score disagree on the few that did not: a card after a
+ * doubles-limit draw read as a win for the leader (ruling 1009). Who LEADS a bout
+ * still in play is `leadingColor`, asked of the score.
  *
  * A stored winner matching NEITHER side means the caller handed over a
- * mismatched pairing, and answering "nobody" is honest where falling through to
- * the scores would invent someone.
+ * mismatched pairing, and the answer is "nobody".
  *
  * Extracted from `resolveMatchWinner`, which keeps the status guard and its
- * eight display call sites and now delegates the rule here — so the crown on a
+ * eight display call sites and delegates the rule here — so the crown on a
  * scoreboard and the W in a standings table cannot drift apart.
  */
 export function winnerColorFrom(bout: {
   winnerRegistrationId?: string | null;
   redRegistrationId?: string | null;
   blueRegistrationId?: string | null;
-  redScore?: number | null;
-  blueScore?: number | null;
 }): 'red' | 'blue' | null {
   const winner = bout.winnerRegistrationId ?? null;
-  if (winner !== null) {
-    if (winner === bout.redRegistrationId) return 'red';
-    if (winner === bout.blueRegistrationId) return 'blue';
-    return null;
-  }
-  return leadingColor({ redScore: bout.redScore ?? 0, blueScore: bout.blueScore ?? 0 });
+  if (winner === null) return null;
+  if (winner === bout.redRegistrationId) return 'red';
+  if (winner === bout.blueRegistrationId) return 'blue';
+  return null;
 }
 
 /** What one bout was worth to one fighter. */
@@ -434,12 +433,9 @@ export function boutOutcomes(bout: {
   winnerRegistrationId?: string | null;
   redRegistrationId?: string | null;
   blueRegistrationId?: string | null;
-  redScore?: number | null;
-  blueScore?: number | null;
   endReason: string | null;
 }): { red: BoutOutcome; blue: BoutOutcome } {
-  // First: a ceiling double loss is 0-0 with no winner, so both tests below it
-  // read it as a draw.
+  // First: a ceiling double loss has no winner, so the test below reads it as a draw.
   if (isDoubleLossBout(bout.endReason)) return { red: 'loss', blue: 'loss' };
   const winner = winnerColorFrom(bout);
   if (winner === 'red') return { red: 'win', blue: 'loss' };

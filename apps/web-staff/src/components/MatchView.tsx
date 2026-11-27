@@ -22,7 +22,12 @@ import { boutNames, heldRowNotice } from '../lib/held-hit';
 import { isPadLetter, pressButtonOf } from '../lib/pad-keys';
 import { endRefusalMessage, refusalMessage } from '../lib/refusal-copy';
 import { nextSequence as outboxNextSequence } from '../offline/outbox';
-import { boutStatusOnPad, resultUnconfirmed, tabletResult } from '../offline/pad-clock';
+import {
+  boutStatusOnPad,
+  resultUnconfirmed,
+  tabletResult,
+  tabletWinner,
+} from '../offline/pad-clock';
 import type { PressedOn } from '../offline/db';
 import { queuePress } from '../offline/press-queue';
 import type { SyncEngine } from '../offline/sync';
@@ -594,7 +599,9 @@ export function MatchView({
   // tablet's own result names that fighter, as the server's row will. A
   // series decided here is won by its rounds (`series.decided`); naming it
   // here means the result screen never has to guess a winner from a score.
-  const ownWinner = seriesDecided ? (series.decided?.winnerColor ?? undefined) : ownResult.winner;
+  const ownWinner = seriesDecided
+    ? (series.decided?.winnerColor ?? undefined)
+    : tabletWinner(ownResult);
   // Why the bout ended, for the result screen: the tablet's own reason while
   // its result is not confirmed (an End at the doubles limit), then the
   // server's. A decided series says its rounds, never its last round's reason.

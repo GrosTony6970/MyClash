@@ -119,8 +119,6 @@ export function computeStandingsRows(input: ComputeRowsInput): StandingsRow[] {
       winnerRegistrationId: m.winner_registration_id,
       redRegistrationId: m.red_registration_id,
       blueRegistrationId: m.blue_registration_id,
-      redScore: rs,
-      blueScore: bs,
       endReason: m.end_reason,
     });
     red[COLUMN_FOR[outcome.red]] = (red[COLUMN_FOR[outcome.red]] ?? 0) + 1;

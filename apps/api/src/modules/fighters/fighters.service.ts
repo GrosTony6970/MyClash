@@ -1069,8 +1069,6 @@ export class FightersService {
                 winnerRegistrationId: winnerRegId,
                 redRegistrationId: redId,
                 blueRegistrationId: blueId,
-                redScore: Number(match['red_score'] ?? 0),
-                blueScore: Number(match['blue_score'] ?? 0),
                 endReason: (match['end_reason'] as string | null) ?? null,
               },
               myRegId === redId ? 'red' : 'blue',

@@ -4321,7 +4321,7 @@ Asked when a clone of TF_v1 could not edit its formula or its tie-breakers: it w
 
 Asked while closing the gap between TF_v1's score and the W column: on a few paths a bout finished
 with no winner but unequal scores, and the two read it differently. Spec:
-`docs/superpowers/specs/2026-11-27-bout-result-is-stored-design.md`.
+`docs/superpowers/archive/specs/2026-11-27-bout-result-is-stored-design.md`.
 
 | Row              | Story                                                                                                                                    | Ruling                                                                                                                | Files                                             |
 | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
