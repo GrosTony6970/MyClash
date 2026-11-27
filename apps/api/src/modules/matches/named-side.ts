@@ -7,7 +7,16 @@ import { idOf, sidesOf } from './bout-sides';
  * names, and whether that side is a side of this bout.
  */
 
-/** A side a request names: its kind, and its key (`sideKey`), the Registration id or the team id. */
+/**
+ * A side a request names: its kind, and its key (`sideKey`), the Registration id or the team id.
+ *
+ * Its kind is `registration` or `team`, while a Tournament's is `individual` or `team`
+ * (`EntrantKind`, `events/tournament-kind.ts`). Both words stay on purpose (ruling 1006): a Side
+ * IS a Registration or a Team (`docs/HIERARCHY.md`), a Tournament IS individual or team (ADR-022).
+ * `registration | team` is the word of a side a request body names; the side shapes the wire sends
+ * (`BracketSideWire.kind`, `PoolStandingsRow.kind`, `SideSeat.kind`) carry the Tournament's word,
+ * `individual | team`.
+ */
 export interface NamedSide {
   kind: 'registration' | 'team';
   id: string;

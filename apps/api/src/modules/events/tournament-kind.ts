@@ -27,6 +27,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * Accepted because both saves come from the club's own admins on a Tournament with no entrant, the
  * damage is a number no write acts on, and any save that sends `maxWaitlist: null` clears it;
  * closing it would need a write conditional on `entrant_kind`, or a trigger over two more columns.
+ *
+ * A Side's kind is another word on purpose (ruling 1006): `registration` or `team` (`NamedSide`,
+ * `matches/named-side.ts`), because a Side IS a Registration or a Team (`docs/HIERARCHY.md`) and a
+ * Tournament IS individual or team (ADR-022). That word is for a side a request body names. The
+ * side shapes the wire sends (`BracketSideWire.kind`, `PoolStandingsRow.kind`, `SideSeat.kind`)
+ * carry the Tournament's word, `individual` or `team`.
  */
 export type EntrantKind = 'individual' | 'team';
 
