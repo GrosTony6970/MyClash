@@ -15,7 +15,6 @@ import {
   localSearch,
   buildCostReport,
   bergerSchedule,
-  singleElimBracket,
   doubleElimBracket,
   type Fighter,
 } from '@myclash/rules/scheduling';
@@ -35,6 +34,7 @@ import type { PopulateBracketDto } from './dto/populate-bracket.dto';
 // erased at runtime so the @Optional() param silently resolves to `undefined`.
 import { BracketAdvanceService } from './bracket-advance.service';
 import { placeholderMatchRow } from './bracket-placeholder-match';
+import { buildBracketShape } from './bracket-shape';
 import {
   doubleElimConfigJson,
   doubleElimOptionsFromDto,
@@ -540,7 +540,7 @@ export class PhasesService {
     // See populateBracket() below.
 
     // Generate bracket structure
-    const bracketOptions = dto.bracketSize !== undefined ? { bracketSize: dto.bracketSize } : {};
+    const shape = buildBracketShape(qualifyCount, dto);
 
     let configJson: Record<string, unknown>;
     let slotInserts: Array<Record<string, unknown>>;
@@ -550,21 +550,8 @@ export class PhasesService {
     // get a placeholder match at generation time.
     let resetRound: number | null = null;
 
-    if (isDoubleElim) {
-      let bracket: ReturnType<typeof doubleElimBracket>;
-      try {
-        // The podium options MUST reach the generator, not just config_json:
-        // they are what emit (or omit) the reset and grand-final slots and what
-        // size the losers bracket. Stamping a flag without passing it here left
-        // the option enabled everywhere in the UI while the slot it controls
-        // was never created.
-        bracket = doubleElimBracket(qualifyCount, {
-          ...bracketOptions,
-          ...doubleElimOptionsFromDto(dto),
-        });
-      } catch (error) {
-        throw new BadRequestException(error instanceof Error ? error.message : 'Invalid bracket');
-      }
+    if (shape.phaseType === 'double_elim') {
+      const { bracket } = shape;
       configJson = doubleElimConfigJson(bracket, seedingStrategy);
       if (bracket.grandFinalReset) resetRound = bracket.wbRounds + bracket.lbRounds + 2;
       slotInserts = bracket.slots.map((slot) => ({
@@ -579,12 +566,7 @@ export class PhasesService {
         registration_b_id: null,
       }));
     } else {
-      let bracket: ReturnType<typeof singleElimBracket>;
-      try {
-        bracket = singleElimBracket(qualifyCount, bracketOptions);
-      } catch (error) {
-        throw new BadRequestException(error instanceof Error ? error.message : 'Invalid bracket');
-      }
+      const { bracket } = shape;
       configJson = {
         bracketSize: bracket.bracketSize,
         mainBracketSize: bracket.mainBracketSize,
