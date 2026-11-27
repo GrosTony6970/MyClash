@@ -213,10 +213,10 @@ function crews(
   const crewOf = (all: CrewRow[]) =>
     winningAssignmentRows(all, seat).map((r) => ({ role: roleName(r.role), name: r.name }));
   const after = rowsAfterWrite(rows, seat, skill.id, person);
-  // `to` is who holds the role once written: after a removal, the Pool's or Lice's holder of the
+  // `next` holds the role once written: after a removal, the Pool's or Lice's holder of the
   // same role takes the Match back, so "nobody" is said only when nobody holds it.
-  const to = holderOf(after, seat, skill.id)?.name ?? null;
-  return { to, crewBefore: crewOf(rows), crewAfter: crewOf(after) };
+  const next = holderOf(after, seat, skill.id);
+  return { next, crewBefore: crewOf(rows), crewAfter: crewOf(after) };
 }
 
 /** The bout's two fighters, by the view the schedule grid reads. A failed read throws. */
@@ -297,7 +297,10 @@ interface Preview {
   judged: Judged;
 }
 
-/** The answer, with the sealed confirmation: who, the role, the holder at preview, the codes. */
+/**
+ * The answer, with the sealed confirmation: who, the role, the holder at preview, who holds the
+ * role once written (`to`), the codes.
+ */
 async function answerOf(
   p: Preview,
   caller: McpCaller,
@@ -305,6 +308,7 @@ async function answerOf(
   key: Buffer,
 ): Promise<PreviewRefereeAnswer> {
   const { match, skill, person, holder, judged } = p;
+  const { next, crewBefore, crewAfter } = crews(p.rows, match, skill, person, p.skills);
   const { token, expiresAt } = sealConfirmation(
     key,
     {
@@ -314,6 +318,7 @@ async function answerOf(
       role: skill.id,
       personId: person?.personId ?? null,
       prev: holder?.personId ?? null,
+      next: next?.personId ?? null,
       codes: judged.codes,
     },
     Date.now(),
@@ -329,7 +334,9 @@ async function answerOf(
     },
     role: skill.name,
     from: holder?.name ?? null,
-    ...crews(p.rows, match, skill, person, p.skills),
+    to: next?.name ?? null,
+    crewBefore,
+    crewAfter,
     level: judged.level,
     warnings: judged.warnings,
     confirmation: token,

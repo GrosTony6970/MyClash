@@ -110,8 +110,9 @@ type Checked = { from: string | null; to: string | null; person: WritePerson | n
 /**
  * The preview's questions again, on the crew as it is now: the holder is still `prev` (call H);
  * a removal still takes off a Match row (call M); a swap's referee still holds the role's
- * skill, the swap is judged again, and a warning the person did not see refuses (call I).
- * Answers who held the role, who will, and the new one.
+ * skill, the swap is judged again, and a warning the person did not see refuses (call I); who
+ * holds the role once written is still `next` (call H). Answers who held the role, who will,
+ * and the new one.
  */
 async function recheck(
   deps: McpToolDeps,
@@ -143,8 +144,11 @@ async function recheck(
     }
   }
   const after = rowsAfterWrite(rows, match.seat, skill.id, person);
-  const to = holderOf(after, match.seat, skill.id)?.name ?? null;
-  return { from: holder?.name ?? null, to, person };
+  // Who takes the role is what the person agreed to: after a removal, the Pool's or Lice's
+  // holder must still be the one the preview named (for a swap it is the new person).
+  const next = holderOf(after, match.seat, skill.id);
+  if ((next?.personId ?? null) !== token.next) return changed(match);
+  return { from: holder?.name ?? null, to: next?.name ?? null, person };
 }
 
 /**

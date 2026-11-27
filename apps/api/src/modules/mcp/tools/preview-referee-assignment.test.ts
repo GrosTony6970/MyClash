@@ -84,6 +84,7 @@ describe('preview_referee_assignment answers', () => {
       role: DECLARANT,
       personId: PAUL,
       prev: JEAN,
+      next: PAUL,
       codes: [],
     });
     expect(judgeVerdict).toHaveBeenCalledWith(EVENT, {
@@ -202,7 +203,12 @@ describe('preview_referee_assignment answers', () => {
       level: 'fine',
       warnings: [],
     });
-    expect(payloadOf(answer.confirmation)).toMatchObject({ personId: null, prev: JEAN, codes: [] });
+    expect(payloadOf(answer.confirmation)).toMatchObject({
+      personId: null,
+      prev: JEAN,
+      next: null,
+      codes: [],
+    });
     expect(judgeVerdict).not.toHaveBeenCalled();
     expect(listEventReferees).not.toHaveBeenCalled();
   });
@@ -216,8 +222,12 @@ describe('preview_referee_assignment answers', () => {
       crewBefore: [{ role: 'Déclarant', name: 'Jean Dupont' }],
       crewAfter: [{ role: 'Déclarant', name: 'Marc Blanc' }],
     });
-    // The write is still a removal of the Match's own row.
-    expect(payloadOf(answer.confirmation)).toMatchObject({ personId: null, prev: JEAN });
+    // The write is still a removal of the Match's own row; the token seals who takes it back.
+    expect(payloadOf(answer.confirmation)).toMatchObject({
+      personId: null,
+      prev: JEAN,
+      next: MARC,
+    });
   });
 
   it('shows the crew after a swap over a Pool-crew holder: the Match row hides the rest', async () => {
@@ -232,7 +242,7 @@ describe('preview_referee_assignment answers', () => {
       ],
       crewAfter: [{ role: 'Déclarant', name: 'Paul Martin' }],
     });
-    expect(payloadOf(answer.confirmation)).toMatchObject({ prev: JEAN });
+    expect(payloadOf(answer.confirmation)).toMatchObject({ prev: JEAN, next: PAUL });
   });
 
   it('finds the role by its id and the referee case- and accent-blind', async () => {

@@ -14,6 +14,8 @@ import {
   JEAN,
   judgeVerdict,
   listEventReferees,
+  LUC,
+  MARC,
   MARIE,
   MATCH,
   PAUL,
@@ -82,6 +84,7 @@ describe('apply_referee_assignment refuses', () => {
         role: DECLARANT,
         personId: PAUL,
         prev: JEAN,
+        next: PAUL,
         codes: [],
       },
       Date.now(),
@@ -134,7 +137,15 @@ describe('apply_referee_assignment refuses', () => {
 
   it('a removal whose holder now holds the role from the Pool crew', async () => {
     world.crew = [crewRow(JEAN, DECLARANT, 'pool')];
-    expect(await refused(seal({ personId: null }))).toBe(CHANGED);
+    expect(await refused(seal({ personId: null, next: null }))).toBe(CHANGED);
+  });
+
+  it('a removal whose Pool holder, who takes the role back, changed since the preview', async () => {
+    // The person agreed to "Marc takes it back"; Luc now holds the role for the Pool.
+    world.crew = [crewRow(JEAN, DECLARANT, 'match'), crewRow(LUC, DECLARANT, 'pool')];
+    expect(await refused(seal({ personId: null, next: MARC }))).toBe(CHANGED);
+    // And "nobody takes it back" when Luc now would.
+    expect(await refused(seal({ personId: null, next: null }))).toBe(CHANGED);
   });
 
   it('a referee who left the roster since the preview', async () => {

@@ -19,6 +19,11 @@ const payloadSchema = z
     personId: z.string().nullable(),
     /** Who held the role at preview time. */
     prev: z.string().nullable(),
+    /**
+     * Who holds the role once written, as the preview said (`to`): the new person for a swap,
+     * the Pool's or Lice's holder (or nobody) for a removal.
+     */
+    next: z.string().nullable(),
     /** The Discouraged reason codes the preview showed, sorted. */
     codes: z.array(z.string()),
     /** Epoch ms. */

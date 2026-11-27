@@ -130,7 +130,7 @@ describe('apply_referee_assignment writes', () => {
 
   it('a removal as null, unjudged, audited as a removal, naming who takes the role back', async () => {
     world.crew = [crewRow(JEAN, DECLARANT, 'match'), crewRow(MARC, DECLARANT, 'pool')];
-    expect(await done(seal({ personId: null }))).toEqual({
+    expect(await done(seal({ personId: null, next: MARC }))).toEqual({
       result: 'Done',
       match: 'LSW-P2-M04',
       role: 'Déclarant',
@@ -156,7 +156,7 @@ describe('apply_referee_assignment writes', () => {
   });
 
   it('refuses a replay of a removal: the role is now empty on the bout', async () => {
-    const token = seal({ personId: null });
+    const token = seal({ personId: null, next: null });
     await done(token);
     world.crew = [];
     expect(await apply(token)).toEqual({ refusal: CHANGED });

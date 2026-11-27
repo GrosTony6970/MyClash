@@ -34,6 +34,7 @@ const payload = {
   role: 'referee',
   personId: '44444444-4444-4444-8444-444444444444' as string | null,
   prev: '55555555-5555-4555-8555-555555555555' as string | null,
+  next: '44444444-4444-4444-8444-444444444444' as string | null,
   codes: ['a', 'b'],
 };
 
@@ -56,11 +57,25 @@ describe('write confirmation', () => {
     });
   });
 
-  it('round-trips a removal (personId null, prev null)', () => {
-    const { token } = sealConfirmation(key, { ...payload, personId: null, prev: null }, NOW);
+  it('round-trips a removal (personId null, prev null, nobody after)', () => {
+    const removal = { ...payload, personId: null, prev: null, next: null };
+    const { token } = sealConfirmation(key, removal, NOW);
     const opened = openConfirmation(key, token, caller, NOW);
     expect(opened?.personId).toBeNull();
     expect(opened?.prev).toBeNull();
+    expect(opened?.next).toBeNull();
+  });
+
+  it('round-trips a removal with who takes the role back', () => {
+    const back = '66666666-6666-4666-8666-666666666666';
+    const { token } = sealConfirmation(key, { ...payload, personId: null, next: back }, NOW);
+    expect(openConfirmation(key, token, caller, NOW)?.next).toBe(back);
+  });
+
+  it('refuses a payload without who holds the role after', () => {
+    const old: Record<string, unknown> = { ...payload, v: 1, exp: NOW + 1000 };
+    delete old['next'];
+    expect(openConfirmation(key, sealRaw(JSON.stringify(old)), caller, NOW)).toBeNull();
   });
 
   it('refuses a token that is not a string', () => {

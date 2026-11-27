@@ -54,6 +54,7 @@ export function crewRow(
     [PAUL]: ['Paul', 'Martin'],
     [MARIE]: ['Marie', 'Curie'],
     [MARC]: ['Marc', 'Blanc'],
+    [LUC]: ['Luc', 'Paulin'],
   };
   const [given_name, family_name] = names[person]!;
   return {
@@ -301,7 +302,10 @@ export function preview(over: Partial<PreviewRefereeArgs> = {}, confirmKey?: Buf
 
 export const forbidden = () => new ForbiddenException('Requires editor role or higher');
 
-/** A confirmation as a preview seals it: Paul for Jean as Déclarant on the bout, no warning. */
+/**
+ * A confirmation as a preview seals it: Paul for Jean as Déclarant on the bout, no warning, Paul
+ * the holder once written. A removal's test names its own `next`.
+ */
 export function seal(over: Partial<ConfirmationPayload> = {}, to: McpCaller = caller): string {
   return sealConfirmation(
     key,
@@ -312,6 +316,7 @@ export function seal(over: Partial<ConfirmationPayload> = {}, to: McpCaller = ca
       role: DECLARANT,
       personId: PAUL,
       prev: JEAN,
+      next: PAUL,
       codes: [],
       ...over,
     },
