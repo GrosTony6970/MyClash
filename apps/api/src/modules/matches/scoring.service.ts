@@ -230,8 +230,8 @@ export class ScoringService {
       // ran has no End to stop at that time, and the row kept the queue's arrival.
       matchUpdates['ended_at'] = endedAtOf(causedAt, m);
       matchUpdates['winner_registration_id'] = scored.winnerRegistrationId;
-      // 'first_to_points' | 'time_limit' | 'max_doubles' — lets the pad +
-      // TV distinguish a 0-0 double loss from a genuine tie.
+      // 'first_to_points' | 'time_limit' | 'max_doubles' | 'venue_limit' — lets the
+      // pad + TV distinguish a 0-0 double loss from a genuine tie.
       matchUpdates['end_reason'] = decision.reason;
     }
 

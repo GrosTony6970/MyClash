@@ -97,6 +97,15 @@ function withoutMaxDoubles(config: GenericPointsCapConfig): GenericPointsCapConf
 }
 
 /**
+ * The format this ruleset plays: in points, whatever unit it stores. Its scorer and its end both
+ * read this, since the cap is never reached in venues mode (`isPointCapReached`).
+ */
+const inPoints = (matchFormat: MatchFormatConfig): MatchFormatConfig => ({
+  ...matchFormat,
+  scoringUnit: 'points',
+});
+
+/**
  * Every hit is worth the one fixed `pointValues.hit`, and an afterblow counts as
  * a clean hit. A club formula ruleset no longer scores this way: it counts the
  * button's value (ruling 2026-11-27).
@@ -111,15 +120,6 @@ function withoutMaxDoubles(config: GenericPointsCapConfig): GenericPointsCapConf
  * reason `withoutMaxDoubles` gives: a club formula ruleset parses through the
  * same schema and DOES offer venues.
  */
-/**
- * The format this ruleset plays: in points, whatever unit it stores. Its scorer and its end both
- * read this, since the cap is never reached in venues mode (`isPointCapReached`).
- */
-const inPoints = (matchFormat: MatchFormatConfig): MatchFormatConfig => ({
-  ...matchFormat,
-  scoringUnit: 'points',
-});
-
 function computeScore(
   match: Pick<Match, 'phaseType'>,
   exchanges: Exchange[],
