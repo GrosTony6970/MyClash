@@ -102,6 +102,13 @@ function withoutMaxDoubles(config: GenericPointsCapConfig): GenericPointsCapConf
  *
  * The venues are counted on the exchanges AS FOUGHT, not as rewritten below: an
  * afterblow is priced as a clean hit here, and still wins nobody a venue.
+ *
+ * Always in points: this ruleset does not offer venues mode, and its
+ * `isMatchOver` ends a bout on the cap only. A format holding
+ * `scoringUnit: 'venues'` would otherwise price every hit at 1 here while the
+ * bout still ended on points. Stripped here rather than in the schema, for the
+ * reason `withoutMaxDoubles` gives: a club formula ruleset parses through the
+ * same schema and DOES offer venues.
  */
 function computeScore(
   match: Pick<Match, 'phaseType'>,
@@ -124,7 +131,7 @@ function computeScore(
           }
         : exchange,
     ),
-    config.matchFormat,
+    { ...config.matchFormat, scoringUnit: 'points' },
   );
   return {
     ...score,

@@ -82,6 +82,37 @@ describe('Generic_PointsCap', () => {
       const score = Generic_PointsCap.computeMatchScore(BASE_MATCH, exchanges, 'full', {});
       expect(score).toMatchObject({ redScore: 2, redVenuesWon: 1, blueVenuesWon: 0 });
     });
+
+    it('scores and ends a format stored in venues mode exactly as points', () => {
+      // A hit worth 2, so a price of 1 per venue would show.
+      const stored = (scoringUnit: 'points' | 'venues') => ({
+        matchFormat: { scoringUnit, pointCap: 4 },
+        pointValues: { hit: 2 },
+      });
+      const exchanges = [
+        makeEx({ id: 'e1', sequence: 1, firstStrikerColor: 'red' }),
+        makeEx({ id: 'e2', sequence: 2, type: 'afterblow', afterblowValue: 1 }),
+      ];
+      const venues = Generic_PointsCap.computeMatchScore(
+        BASE_MATCH,
+        exchanges,
+        'full',
+        stored('venues'),
+      );
+      const points = Generic_PointsCap.computeMatchScore(
+        BASE_MATCH,
+        exchanges,
+        'full',
+        stored('points'),
+      );
+      expect(venues).toEqual(points);
+      expect(venues).toMatchObject({ redScore: 4, blueScore: 0 });
+      // Red reached the cap of 4: the bout ends on points, for red.
+      expect(Generic_PointsCap.isMatchOver(BASE_MATCH, venues, stored('venues'))).toEqual({
+        isOver: true,
+        reason: 'first_to_points',
+      });
+    });
   });
 
   describe('the doubles ceiling, which this ruleset does not have', () => {
