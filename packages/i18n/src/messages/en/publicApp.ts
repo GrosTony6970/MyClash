@@ -1214,6 +1214,7 @@ export const publicApp = {
         "No bracket yet — the bracket will appear here once the tournament's elimination phase is generated.",
       regionLabel: 'Tournament bracket',
       summarySize: '{count}-fighter bracket',
+      summarySizeTeam: '{count}-team bracket',
       summaryMain: 'main {count}',
       summaryPlayIn: '{count} play-in matches',
       summaryByes: '{count} byes',

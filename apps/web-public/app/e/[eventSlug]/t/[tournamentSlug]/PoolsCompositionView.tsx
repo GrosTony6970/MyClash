@@ -27,7 +27,7 @@ import { refereeRoleLabel } from '@/components/me/referee-role';
  */
 export interface PoolMember extends Pick<
   SideSeat,
-  'sideId' | 'kind' | 'registrationId' | 'colour' | 'logoUrl'
+  'sideId' | 'registrationId' | 'colour' | 'logoUrl'
 > {
   fighterName: string;
   clubName: string | null;
@@ -92,6 +92,11 @@ interface Props {
    * original 1/2-column layout.
    */
   wide?: boolean;
+  /**
+   * Whether the Tournament's entrants are teams (`tournament.entrantKind === 'team'`): each card
+   * counts teams, then. Never guessed from the seats: a Pool that seats nobody has none to read.
+   */
+  teams: boolean;
   /** Active UI locale — drives the section date/time + labels. */
   locale: Locale;
 }
@@ -126,6 +131,7 @@ export function PoolsCompositionView({
   ringPoolIds,
   refereeRowKeys,
   wide = false,
+  teams,
   locale,
 }: Props) {
   const t = createTranslator(getMessages(locale));
@@ -199,13 +205,7 @@ export function PoolsCompositionView({
                         </span>
                       )}
                       <span className="whitespace-nowrap text-xs uppercase tracking-wider text-muted">
-                        {/* A Pool holds one kind of seat: a team Pool counts teams. */}
-                        {entrantCountLabel(
-                          t,
-                          locale,
-                          pool.members.length,
-                          pool.members.some((m) => m.kind === 'team'),
-                        )}
+                        {entrantCountLabel(t, locale, pool.members.length, teams)}
                       </span>
                     </span>
                   </header>

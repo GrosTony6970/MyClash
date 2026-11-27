@@ -16,7 +16,7 @@ import { extractBronzeMatch, resolveMatchWinner, type RulesChangeNotice } from '
 import type { PoolMember, PoolReferee } from './PoolsCompositionView';
 
 /** One row of a Pool's standings: a Fighter or a team (its chip's data, as the API sends it). */
-export interface StandingRow extends Pick<PoolStandingsRow, 'kind' | 'colour' | 'logoUrl'> {
+export interface StandingRow extends Pick<PoolStandingsRow, 'colour' | 'logoUrl'> {
   /** The entrant's side key: a Registration id, or a team id in a team Tournament's Pools. */
   entrantId: string;
   /** The Fighter's name, or the team's. */
@@ -65,6 +65,9 @@ export interface Tournament {
   /** Every audited change of the scoring rules, newest first; empty when there was none. The
    *  API always sends the list (a failed read of it is logged and sent empty). */
   rulesetRepins: RulesChangeNotice[];
+  /** Fighters or teams (`tournaments.entrant_kind`): what the pages name the entrants, even in a
+   *  Pool that seats nobody yet. The API always sends it. */
+  entrantKind: 'individual' | 'team';
 }
 
 export interface TournamentData {
@@ -246,18 +249,11 @@ export function derivePodium(
 }
 
 /**
- * How many entrants the Pools seat, and whether they are teams: a team Tournament's Pools seat teams
- * only, so the page says "N teams", never "N fighters".
+ * How many entrants the Pools seat. Whether they are teams is the Tournament's own
+ * `entrantKind`, never guessed from the seats: a Pool that seats nobody has none to look at.
  */
-export function poolEntrants(pools: Pool[]): { count: number; teams: boolean } {
-  return {
-    count: pools.reduce((n, pool) => n + (pool.members?.length ?? pool.standings.length), 0),
-    teams: pools.some(
-      (pool) =>
-        (pool.members ?? []).some((m) => m.kind === 'team') ||
-        pool.standings.some((row) => row.kind === 'team'),
-    ),
-  };
+export function poolEntrantCount(pools: Pool[]): number {
+  return pools.reduce((n, pool) => n + (pool.members?.length ?? pool.standings.length), 0);
 }
 
 /**
@@ -338,7 +334,6 @@ export function toStandingRow(row: PoolStandingsRow): StandingRow {
   return {
     entrantId: row.entrantId,
     fighterName: row.displayName,
-    kind: row.kind,
     colour: row.colour,
     logoUrl: row.logoUrl,
     clubName: row.club?.name ?? null,

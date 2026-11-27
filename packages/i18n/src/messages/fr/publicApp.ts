@@ -1217,6 +1217,7 @@ export const publicApp = {
         'Pas encore de tableau — le tableau apparaîtra ici une fois la phase à élimination du tournoi générée.',
       regionLabel: 'Tableau du tournoi',
       summarySize: 'Tableau à {count} combattants',
+      summarySizeTeam: 'Tableau à {count} équipes',
       summaryMain: 'principal {count}',
       summaryPlayIn: '{count} combats de qualification',
       summaryByes: '{count} exempts',

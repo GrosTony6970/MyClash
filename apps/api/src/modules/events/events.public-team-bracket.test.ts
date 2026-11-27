@@ -43,6 +43,7 @@ const tournament = (slug: string) => ({
   slug,
   name: slug,
   status: 'running',
+  entrant_kind: slug === 'teams' ? 'team' : 'individual',
   weapon: 'longsword',
   ruleset_code: 'TF_v1',
   ruleset_version: '1',

@@ -22,6 +22,11 @@ interface Props {
   poolName: string;
   initialStandings: StandingRow[];
   tournamentId: string;
+  /**
+   * Whether the Tournament's entrants are teams (`tournament.entrantKind === 'team'`): the column
+   * says Team, then. Never guessed from the rows: a Pool that seats nobody has none to read.
+   */
+  teams: boolean;
   /** Personal space: mark the viewer's own row with a "YOU" chip. */
   highlightRegistrationId?: string | null;
 }
@@ -40,6 +45,7 @@ export function StandingsTable({
   poolName,
   initialStandings,
   tournamentId,
+  teams,
   highlightRegistrationId,
 }: Props) {
   const { t } = useI18n();
@@ -143,7 +149,7 @@ export function StandingsTable({
           <thead>
             <tr className="border-b border-border text-xs uppercase tracking-wider text-muted">
               <th className="py-2 pr-3 text-left font-semibold">
-                {standings.some((row) => row.kind === 'team')
+                {teams
                   ? t('publicApp.tournament.standings.colTeam')
                   : t('publicApp.tournament.standings.colFighter')}
               </th>

@@ -63,11 +63,12 @@ const bout = (id: string, pool: string, sides: Record<string, unknown>) => ({
   ...sides,
 });
 
-const tournament = (slug: string, pool: string) => ({
+const tournament = (slug: string, pool: string, entrantKind = 'individual') => ({
   id: `id-${slug}`,
   event_id: EVENT,
   slug,
   name: slug,
+  entrant_kind: entrantKind,
   status: 'running',
   weapon: 'longsword',
   ruleset_code: 'TF_v1',
@@ -95,7 +96,14 @@ beforeEach(() => {
         },
       ],
     },
-    tournaments: { rows: [tournament('teams', 'pool-t'), tournament('solo', 'pool-s')] },
+    tournaments: {
+      rows: [
+        tournament('teams', 'pool-t', 'team'),
+        tournament('solo', 'pool-s'),
+        // A team Tournament whose one Pool seats nobody yet (an empty Pool made by "add Pool").
+        tournament('empty-teams', 'pool-e', 'team'),
+      ],
+    },
     custom_rulesets: { rows: [] },
     tournament_ruleset_repins: { rows: [] },
     registrations: { rows: [] },
@@ -104,6 +112,7 @@ beforeEach(() => {
       rows: [
         { id: 'phase-pool-t', tournament_id: 'id-teams', type: 'pool', config_json: {} },
         { id: 'phase-pool-s', tournament_id: 'id-solo', type: 'pool', config_json: {} },
+        { id: 'phase-pool-e', tournament_id: 'id-empty-teams', type: 'pool', config_json: {} },
       ],
     },
     pools: {
@@ -133,6 +142,7 @@ beforeEach(() => {
             { registration_id: ANNA.id, team_id: null, seed: 1, registrations: ANNA, teams: null },
           ],
         },
+        { id: 'pool-e', phase_id: 'phase-pool-e', name: 'Pool A', sort_order: 0, pool_members: [] },
       ],
     },
     matches: {
@@ -296,5 +306,31 @@ describe('the public Pool composition', () => {
     const added = { sideId: 'reg-anna', kind: 'individual', colour: null, logoUrl: null };
 
     expect(await membersOf('solo')).toEqual([{ ...before, ...added }]);
+  });
+});
+
+/**
+ * The public pages name the entrants by the Tournament's kind, read here, not guessed from the
+ * Pools' seats: a Pool that seats nobody has no seat to guess from.
+ */
+describe("the public Tournament header's kind", () => {
+  const headerOf = async (slug: string) =>
+    (await controller.getPublicTournamentStandings('open', slug, ANON)).tournament;
+
+  it('reads the kind with the Tournament', async () => {
+    await headerOf('teams');
+
+    expect(selectsFor(db.from, 'tournaments')).toEqual([
+      'id, name, weapon, ruleset_code, ruleset_version, status, logo_url, color, scoring_config_json, entrant_kind',
+    ]);
+  });
+
+  it('sends a team Tournament as team, even with a Pool that seats nobody', async () => {
+    expect((await headerOf('teams'))['entrantKind']).toBe('team');
+    expect((await headerOf('empty-teams'))['entrantKind']).toBe('team');
+  });
+
+  it('sends an individual Tournament as individual', async () => {
+    expect((await headerOf('solo'))['entrantKind']).toBe('individual');
   });
 });

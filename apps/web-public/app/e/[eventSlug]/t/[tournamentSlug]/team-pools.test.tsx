@@ -12,7 +12,7 @@ import { PoolsCompositionView, type PoolMember } from './PoolsCompositionView';
 import { StandingsTable } from './StandingsTable';
 import { StandingsView } from './StandingsView';
 import { createTranslator, getMessages } from '@myclash/i18n';
-import { entrantCountLabel, poolEntrants, toStandingRow } from './tournament-data';
+import { entrantCountLabel, poolEntrantCount, toStandingRow } from './tournament-data';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 // The live refetch needs a websocket; these pages are drawn from one read.
@@ -67,7 +67,6 @@ const FIGHTER_BOUT = {
 
 const teamSeat = (sideId: string, name: string, colour: string): PoolMember => ({
   sideId,
-  kind: 'team',
   registrationId: null,
   fighterName: name,
   clubName: null,
@@ -185,6 +184,7 @@ describe("a team Pool's composition card", () => {
             ]),
           ]}
           accentColor="#64748b"
+          teams
           locale="en"
         />,
       ),
@@ -207,7 +207,6 @@ describe("a team Pool's standings", () => {
     expect(toStandingRow(teamStanding('team-paris', 'Paris Rapiers', 'amber'))).toMatchObject({
       entrantId: 'team-paris',
       fighterName: 'Paris Rapiers',
-      kind: 'team',
       colour: 'amber',
       logoUrl: null,
     });
@@ -221,6 +220,7 @@ describe("a team Pool's standings", () => {
           poolName="Pool A"
           tournamentId="t-1"
           initialStandings={[toStandingRow(teamStanding('team-paris', 'Paris Rapiers', 'amber'))]}
+          teams
         />
       </I18nProvider>,
     );
@@ -229,7 +229,7 @@ describe("a team Pool's standings", () => {
   });
 
   it("show each team's chip by its name, overall", async () => {
-    await drawWithRead(<StandingsView tournamentId="t-1" pools={[]} />, {
+    await drawWithRead(<StandingsView tournamentId="t-1" pools={[]} teams />, {
       rulesetCode: 'tf_v1',
       rulesetVersion: '1.0.0',
       columns: [],
@@ -247,7 +247,6 @@ describe("a team Pool's standings", () => {
 describe("a team Pool's words", () => {
   const fighterSeat = (sideId: string, name: string): PoolMember => ({
     ...teamSeat(sideId, name, 'teal'),
-    kind: 'individual',
     registrationId: sideId,
     colour: null,
   });
@@ -263,7 +262,7 @@ describe("a team Pool's words", () => {
     timezone: 'Europe/Paris',
     pools: [{ poolId: 'p-1', poolName: 'Pool A', matches }],
   });
-  const card = (members: PoolMember[], locale: 'en' | 'fr' = 'en') => {
+  const card = (members: PoolMember[], teams: boolean, locale: 'en' | 'fr' = 'en') => {
     act(() =>
       root.render(
         <PoolsCompositionView
@@ -279,6 +278,7 @@ describe("a team Pool's words", () => {
             },
           ]}
           accentColor="#64748b"
+          teams={teams}
           locale={locale}
         />,
       ),
@@ -286,15 +286,16 @@ describe("a team Pool's words", () => {
     // The card's own header, not the start-time section's.
     return container.querySelector('a header')!.textContent;
   };
-  const standingsHeader = (row: PoolStandingsRow) =>
+  const standingsHeader = (rows: PoolStandingsRow[], teams: boolean, locale: 'en' | 'fr' = 'en') =>
     /<th[^>]*>([^<]*)<\/th>/.exec(
       renderToStaticMarkup(
-        <I18nProvider locale="en">
+        <I18nProvider locale={locale}>
           <StandingsTable
             poolId="p-1"
             poolName="Pool A"
             tournamentId="t-1"
-            initialStandings={[toStandingRow(row)]}
+            initialStandings={rows.map(toStandingRow)}
+            teams={teams}
           />
         </I18nProvider>,
       ),
@@ -343,18 +344,28 @@ describe("a team Pool's words", () => {
       teamSeat('team-lyon', 'Lyon Blades', 'teal'),
       teamSeat('team-paris', 'Paris Rapiers', 'amber'),
     ];
-    expect(card(teams)).toContain('2 teams');
-    expect(card(teams, 'fr')).toContain('2 équipes');
-    expect(card([fighterSeat('reg-ada', 'Ada'), fighterSeat('reg-mary', 'Mary')])).toContain(
+    expect(card(teams, true)).toContain('2 teams');
+    expect(card(teams, true, 'fr')).toContain('2 équipes');
+    expect(card([fighterSeat('reg-ada', 'Ada'), fighterSeat('reg-mary', 'Mary')], false)).toContain(
       '2 fighters',
     );
   });
 
-  it('heads the standings Team, and Fighter for Fighters', async () => {
-    expect(standingsHeader(teamStanding('team-paris', 'Paris Rapiers', 'amber'))).toBe('Team');
-    expect(standingsHeader(fighterStanding('reg-ada', 'Ada Lovelace'))).toBe('Fighter');
+  // A Pool that seats nobody yet has no seat to read the kind from: the Tournament's says it.
+  it('names the entrants of an empty team Pool teams, in English and French', () => {
+    expect(card([], true)).toContain('0 teams');
+    expect(card([], true, 'fr')).toContain('0 équipe');
+    expect(standingsHeader([], true)).toBe('Team');
+    expect(standingsHeader([], true, 'fr')).toBe('Équipe');
+  });
 
-    await drawWithRead(<StandingsView tournamentId="t-1" pools={[]} />, {
+  it('heads the standings Team, and Fighter for Fighters', async () => {
+    expect(standingsHeader([teamStanding('team-paris', 'Paris Rapiers', 'amber')], true)).toBe(
+      'Team',
+    );
+    expect(standingsHeader([fighterStanding('reg-ada', 'Ada Lovelace')], false)).toBe('Fighter');
+
+    await drawWithRead(<StandingsView tournamentId="t-1" pools={[]} teams />, {
       rulesetCode: 'tf_v1',
       rulesetVersion: '1.0.0',
       columns: [],
@@ -363,7 +374,8 @@ describe("a team Pool's words", () => {
     expect(headers()).toContain('Team');
   });
 
-  it('counts the Tournament header in teams when its Pools seat teams', () => {
+  // Whether the entrants are teams is the Tournament's `entrantKind` (page.entrant-kind.test.tsx).
+  it('counts the entrants the Pools seat, teams or Fighters', () => {
     const pool = (members: PoolMember[]) => ({
       id: 'p-1',
       name: 'Pool A',
@@ -371,13 +383,10 @@ describe("a team Pool's words", () => {
       referees: [],
       standings: [],
     });
-    expect(poolEntrants([pool([teamSeat('team-lyon', 'Lyon Blades', 'teal')])])).toEqual({
-      count: 1,
-      teams: true,
-    });
-    expect(poolEntrants([pool([fighterSeat('reg-ada', 'Ada')])])).toEqual({
-      count: 1,
-      teams: false,
-    });
+    expect(poolEntrantCount([pool([teamSeat('team-lyon', 'Lyon Blades', 'teal')])])).toBe(1);
+    expect(
+      poolEntrantCount([pool([fighterSeat('reg-ada', 'Ada'), fighterSeat('reg-bo', 'Bo')])]),
+    ).toBe(2);
+    expect(poolEntrantCount([pool([])])).toBe(0);
   });
 });

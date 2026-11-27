@@ -73,6 +73,11 @@ interface Props {
   bracketSize?: number | null;
   /** Optional tournament brand color token for the active toggle pill. */
   colorToken?: string | null;
+  /**
+   * Whether the Tournament's entrants are teams (`tournament.entrantKind === 'team'`): every table
+   * heads its name column Team, then. Never guessed from the rows: an empty Pool has none.
+   */
+  teams: boolean;
   /** Personal space: mark the viewer's own row with a "YOU" chip. */
   highlightRegistrationId?: string | null;
 }
@@ -103,6 +108,7 @@ export function StandingsView({
   pools,
   bracketSize,
   colorToken,
+  teams,
   highlightRegistrationId,
 }: Props) {
   const { t } = useI18n();
@@ -201,6 +207,7 @@ export function StandingsView({
         <OverallTable
           data={overall}
           bracketSize={bracketSize ?? null}
+          teams={teams}
           highlightRegistrationId={highlightRegistrationId}
         />
       ) : (
@@ -212,6 +219,7 @@ export function StandingsView({
               poolName={pool.name}
               initialStandings={pool.standings}
               tournamentId={tournamentId}
+              teams={teams}
               highlightRegistrationId={highlightRegistrationId}
             />
           ))}
@@ -247,10 +255,12 @@ function derivationSentence(
 function OverallTable({
   data,
   bracketSize,
+  teams,
   highlightRegistrationId,
 }: {
   data: OverallResponse | null;
   bracketSize: number | null;
+  teams: boolean;
   highlightRegistrationId?: string | null;
 }) {
   const { t } = useI18n();
@@ -294,7 +304,7 @@ function OverallTable({
           <tr>
             <th className="w-12 px-3 py-2 text-center font-semibold">#</th>
             <th className="px-3 py-2 text-left font-semibold">
-              {data.rows.some((row) => row.kind === 'team')
+              {teams
                 ? t('publicApp.tournament.standings.colTeam')
                 : t('publicApp.tournament.standings.colFighter')}
             </th>

@@ -61,6 +61,8 @@ interface Props {
   /** The tournament's configured fighter-side colour tokens. Without this the
    *  bracket silently fell back to BracketView's old red/blue defaults. */
   sideColors?: { red: string; blue: string } | null;
+  /** Whether the Tournament's entrants are teams (`tournament.entrantKind === 'team'`). */
+  teams: boolean;
 }
 
 interface TournamentDataLike {
@@ -98,6 +100,7 @@ export function BracketLive({
   personalView = false,
   refereeSelfKeys,
   sideColors,
+  teams,
 }: Props) {
   const { t } = useI18n();
   const router = useRouter();
@@ -303,7 +306,12 @@ export function BracketLive({
         refereeSelfKeys={refereeSelfKeys}
       />
       <p className="mt-4 text-xs text-muted">
-        {t('publicApp.tournament.bracket.summarySize', { count: bracketSize })}
+        {t(
+          teams
+            ? 'publicApp.tournament.bracket.summarySizeTeam'
+            : 'publicApp.tournament.bracket.summarySize',
+          { count: bracketSize },
+        )}
         {mainBracketSize &&
           mainBracketSize !== bracketSize &&
           ` · ${t('publicApp.tournament.bracket.summaryMain', { count: mainBracketSize })}`}

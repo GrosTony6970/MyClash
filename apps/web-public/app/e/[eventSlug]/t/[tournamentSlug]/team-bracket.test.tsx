@@ -1,13 +1,19 @@
 // @vitest-environment jsdom
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { accentClassFor } from '@myclash/ui';
 import type { BracketSideWire } from '@myclash/types/bracket-side';
 // Relative: this app's tsconfig leaves test files out, and Vite applies its `@/` to the files it holds.
 import { I18nProvider } from '../../../../../src/i18n/I18nProvider';
+import { BracketLive } from './BracketLive';
 import { FinalRankingTab } from './FinalRankingTab';
 import { derivePodium, type BracketSlot } from './tournament-data';
+
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+// The live refetch needs a websocket; the bracket is drawn from one read.
+vi.mock('../../../../../src/lib/supabase-browser', () => ({ useRealtimeWithFallback: () => {} }));
 
 /**
  * A team final: Lyon Blades (teal, red) leads 5 to 2, then forfeits, so the record names Paris
@@ -126,5 +132,28 @@ describe('the final ranking tab of a team Tournament', () => {
     ]);
 
     expect([...container.querySelectorAll('th')].map((th) => th.textContent)).toContain('Fighter');
+  });
+});
+
+describe('the live bracket of a team Tournament', () => {
+  const summary = (teams: boolean, locale: 'en' | 'fr') =>
+    renderToStaticMarkup(
+      <I18nProvider locale={locale}>
+        <BracketLive
+          eventSlug="e"
+          tournamentSlug="t"
+          initialSlots={[FINAL]}
+          bracketSize={2}
+          rounds={1}
+          weapon={null}
+          teams={teams}
+        />
+      </I18nProvider>,
+    );
+
+  it('sizes the bracket in teams, in English and French', () => {
+    expect(summary(true, 'en')).toContain('2-team bracket');
+    expect(summary(true, 'fr')).toContain('Tableau à 2 équipes');
+    expect(summary(false, 'en')).toContain('2-fighter bracket');
   });
 });

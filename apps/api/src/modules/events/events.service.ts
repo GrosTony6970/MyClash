@@ -127,6 +127,7 @@ import {
   countTournamentEntrants,
   kindColumnsOfSave,
   kindInForce,
+  storedKind,
   type EntrantKind,
 } from './tournament-kind';
 import { entrantKindRefusal } from '../../common/entrant-kind-refusal';
@@ -1554,7 +1555,7 @@ export class EventsService {
     const { data: tournamentRow, error: tournamentError } = await this.supabase.service
       .from('tournaments')
       .select(
-        'id, name, weapon, ruleset_code, ruleset_version, status, logo_url, color, scoring_config_json',
+        'id, name, weapon, ruleset_code, ruleset_version, status, logo_url, color, scoring_config_json, entrant_kind',
       )
       .eq('event_id', eventId)
       .eq('slug', tournamentSlug)
@@ -1588,6 +1589,9 @@ export class EventsService {
       rulesetRepins,
       name: tournament['name'],
       weapon: tournament['weapon'],
+      // Fighters or teams: what the public pages name the entrants, even in a Pool that seats
+      // nobody yet. Read, never guessed from the seats; a read without the column throws.
+      entrantKind: storedKind(tournament['entrant_kind']),
       // The organiser's configured fighter-side colours, so the public bracket
       // paints the same corners the pad and the projector do.
       sideColors: sideColorsFromScoringConfig(tournament['scoring_config_json']),
