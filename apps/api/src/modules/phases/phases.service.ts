@@ -2926,14 +2926,9 @@ export class PhasesService {
     }
 
     let phaseId: string;
-    const { data: existingPhase } = await this.supabase.service
-      .from('phases')
-      .select('id')
-      .eq('tournament_id', tournamentId)
-      .eq('type', 'pool')
-      .maybeSingle();
-    if (existingPhase) {
-      phaseId = (existingPhase as { id: string }).id;
+    const existing = await existingPhase(this.supabase.service, tournamentId, ['pool']);
+    if (existing) {
+      phaseId = existing.id;
     } else {
       const { data: phase, error: phaseError } = await this.supabase.service
         .from('phases')

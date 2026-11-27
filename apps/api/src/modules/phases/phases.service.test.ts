@@ -703,6 +703,63 @@ describe('PhasesService', () => {
       expect(result).toMatchObject({ id: 'pool-1', name: 'Pool 1', sortOrder: 0 });
     });
 
+    // A database blip on "is there a Pool phase yet?" read as "none" made a SECOND Pool phase
+    // beside the first; no unique index stops it, and the app could not repair it after.
+    describe('a failed read of the existing phase refuses, and nothing is written', () => {
+      const failedRead = { phases: { data: null, error: { message: 'connection reset' } } };
+
+      it('Generate Pools', async () => {
+        const { service, supabase } = makeService(failedRead);
+        await expect(service.generatePools('tournament-1', { poolCount: 2 })).rejects.toThrow(
+          'existing phase read failed: connection reset',
+        );
+        expect(supabase.writes).toEqual([]);
+      });
+
+      it('Generate Bracket', async () => {
+        const { service, supabase } = makeService(failedRead);
+        await expect(service.generateBracket('tournament-1', {} as never)).rejects.toThrow(
+          'existing phase read failed: connection reset',
+        );
+        expect(supabase.writes).toEqual([]);
+      });
+
+      it('Add Pool', async () => {
+        const { service, supabase } = makeService({
+          ...failedRead,
+          tournaments: { rows: [{ id: 'tournament-1', events: { organization_id: 'org-1' } }] },
+        });
+        await expect(service.addEmptyPool('tournament-1', 'user-1')).rejects.toThrow(
+          'existing phase read failed: connection reset',
+        );
+        expect(supabase.writes).toEqual([]);
+      });
+    });
+
+    it('addEmptyPool adds to the pool phase the Tournament already has', async () => {
+      const { service, supabase } = makeService({
+        tournaments: { rows: [{ id: 'tournament-1', events: { organization_id: 'org-1' } }] },
+        // This Tournament's bracket and another's Pool phase are not it.
+        phases: {
+          rows: [
+            { id: 'phase-elsewhere', tournament_id: 'other-tournament', type: 'pool' },
+            { id: 'bracket-here', tournament_id: 'tournament-1', type: 'single_elim' },
+            { id: 'phase-here', tournament_id: 'tournament-1', type: 'pool' },
+          ],
+        },
+        pools: { rows: [{ id: 'pool-1', name: 'Pool 1', sort_order: 0, phase_id: 'phase-here' }] },
+      });
+
+      await service.addEmptyPool('tournament-1', 'user-1');
+
+      expect(writesTo(supabase, 'phases')).toEqual([]);
+      expect(writesTo(supabase, 'pools')[0]?.row).toMatchObject({
+        phase_id: 'phase-here',
+        name: 'Pool 2',
+        sort_order: 1,
+      });
+    });
+
     it('deleteAllPools is a no-op when there is no pool phase', async () => {
       // One decoy per filter on the lookup: another tournament's pool phase,
       // and this tournament's BRACKET phase. Neither is this tournament's pool

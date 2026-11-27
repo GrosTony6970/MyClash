@@ -43,13 +43,12 @@ describe('existingPhase', () => {
     expect(found).toBeNull();
   });
 
-  it('reads a failed read as none, as the generate doors always have, and logs it', async () => {
+  it('throws on a failed read, never "none", and logs it', async () => {
     const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     const supabase = db({ phases: { data: null, error: { message: 'connection reset' } } });
-    const found = await existingPhase(supabase.service as unknown as SupabaseClient, 't-1', [
-      'pool',
-    ]);
-    expect(found).toBeNull();
-    expect(warn).toHaveBeenCalledWith('existing phase read failed, read as none: connection reset');
+    await expect(
+      existingPhase(supabase.service as unknown as SupabaseClient, 't-1', ['pool']),
+    ).rejects.toThrow('existing phase read failed: connection reset');
+    expect(warn).toHaveBeenCalledWith('existing phase read failed: connection reset');
   });
 });

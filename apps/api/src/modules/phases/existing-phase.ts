@@ -6,12 +6,14 @@ const logger = new Logger('ExistingPhase');
 /**
  * The Tournament's phase of one of `types` (`['pool']`, or both elimination types), or null.
  *
- * The one read of "does this Tournament have Pools (or a bracket) yet". Generate Pools and
- * Generate Bracket refuse on it without `force`, and Claude's draft tools refuse on it before
- * they save a draft that Apply would refuse.
+ * The one read of "does this Tournament have Pools (or a bracket) yet". Generate Pools, Generate
+ * Bracket and Add Pool create the phase when it answers none, and Claude's draft tools refuse on
+ * it before they save a draft that Apply would refuse.
  *
- * A failed read answers null, as both doors have always read it: they go on and generate. That
- * is kept as it was, with a warning in the log so the miss leaves a trace.
+ * A failed read THROWS (a 5xx), with a warning in the log. Read as "none", a database blip made
+ * Generate Pools write a second Pool phase beside the first: `phases` has no unique index on
+ * (Tournament, type), and from then on every one-row read of the Pool phase failed on two rows,
+ * read as "none" again, and the app could not repair it.
  */
 export async function existingPhase(
   db: SupabaseClient,
@@ -25,8 +27,8 @@ export async function existingPhase(
     .in('type', [...types])
     .maybeSingle();
   if (error) {
-    logger.warn(`existing phase read failed, read as none: ${error.message}`);
-    return null;
+    logger.warn(`existing phase read failed: ${error.message}`);
+    throw new Error(`existing phase read failed: ${error.message}`);
   }
   return (data as { id: string } | null) ?? null;
 }
