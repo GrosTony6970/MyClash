@@ -469,8 +469,8 @@
     },
     "apps/api/src/modules/tournament-query/tournament-query.tools.service.ts": {
       "verdict": "not-yet",
-      "hits": 24,
-      "why": "1c: (1c-2) the assistant's Tournament queries find a Fighter's bouts and wins by Registration (`:42`-`:55`, `:246`-`:256`, `:327`-`:340`, `:522`-`:524`, `:695`-`:708`). Their names come from view 0284, which replaced 0193 and names a team side by its team. Not in the design's slice list, put with the rest of a Tournament"
+      "hits": 15,
+      "why": "1c: (1c-2) the assistant's Tournament queries find a Fighter's bouts by Registration (`:268`-`:273`, `:296`-`:310`) and count a Fighter's wins by Registration (`computeStats`, `:696`-`:722`). The bracket table names a bout's winner by side key (`winnerName`, `:855`-`:863`). Their names come from view 0284, which replaced 0193 and names a team side by its team. Not in the design's slice list, put with the rest of a Tournament"
     },
     "apps/api/src/workers/alert-still-wanted.ts": {
       "verdict": "individual-only",
