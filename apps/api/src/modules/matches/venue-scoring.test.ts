@@ -127,6 +127,7 @@ describe('ScoringService.recomputeMatchScore — a venues bout', () => {
     expect(round2.written()?.row).toMatchObject({
       status: 'completed',
       winner_registration_id: 'red',
+      end_reason: 'venue_limit',
     });
   });
 });
@@ -210,6 +211,56 @@ describe('MatchesService.createExchange — what a venues hit stores', () => {
     await service.createExchange('m1', post({ firstStrikeValue: 2 }));
 
     expect(stored(supabase)).toMatchObject({ red_score_delta: 2 });
+  });
+});
+
+describe('MatchesService.editExchange — what an edited venues hit stores', () => {
+  function serviceFor(matchFormat: Record<string, unknown>) {
+    const supabase = mockSupabase({
+      exchanges: {
+        rows: [{ id: 'ex-1', match_id: 'm1', voided: false, sequence: 3, round_number: 1 }],
+        returning: { id: 'ex-2' },
+      },
+      matches: { rows: [{ id: 'm1', locked_at: null, match_rules: rulesOf(matchFormat) }] },
+    });
+    const scoring = {
+      recomputeMatchScore: vi.fn().mockResolvedValue({ redScore: 0, blueScore: 0 }),
+      assertCorrectionLands: vi.fn().mockResolvedValue(undefined),
+    };
+    const service = new MatchesService(
+      supabase as never,
+      scoring as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      undefined,
+      undefined,
+      builtInResolver(),
+    );
+    return { supabase, service };
+  }
+  const edit = { type: 'clean', firstStrikerColor: 'red', firstStrikeValue: 2, reason: 'wrong' };
+  const replacement = (supabase: ReturnType<typeof mockSupabase>) =>
+    writesTo(supabase, 'exchanges').find((write) => write.op === 'insert')?.row;
+
+  it('prices the edited clean hit as 1, whatever its button', async () => {
+    const { service, supabase } = serviceFor(venuesFormat());
+
+    await service.editExchange('ex-1', edit as never);
+
+    expect(replacement(supabase)).toMatchObject({
+      first_strike_value: 2,
+      red_score_delta: 1,
+      blue_score_delta: 0,
+    });
+  });
+
+  it('prices it by its button when the bout counts points', async () => {
+    const { service, supabase } = serviceFor({ scoringUnit: 'points' });
+
+    await service.editExchange('ex-1', edit as never);
+
+    expect(replacement(supabase)).toMatchObject({ red_score_delta: 2, blue_score_delta: 0 });
   });
 });
 
