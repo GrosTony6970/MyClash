@@ -1220,6 +1220,8 @@ export const admin = {
       'Ces rulesets sont disponibles pour les tournois. Les rulesets système ne peuvent pas être modifiés.',
     curatedEmpty: 'Aucun ruleset curate pour le moment.',
     curatedLoadError: 'Impossible de charger les rulesets curates.',
+    cloneSourceUnreadable:
+      'Les réglages enregistrés de ce règlement sont illisibles : la copie part d’un formulaire vide.',
     loadOneError: 'Impossible de charger le ruleset.',
     createButton: 'Nouveau ruleset',
     createTitle: 'Créer un ruleset personnalisé',

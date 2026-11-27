@@ -32,14 +32,7 @@ import { SupabaseService } from '../../supabase/supabase.service';
 import { insertAuditLog } from '../../../common/audit-log';
 import { customRulesetOrgVisibilityFilter } from '../../../common/custom-ruleset-visibility';
 import { resolveOrganizationNames } from '../../../common/organization-names';
-import {
-  buildCodedForkRow,
-  defaultRulesetVersion,
-  isSystemRuleset,
-  normalizeRulesetVersion,
-  refuseNonTfBase,
-  resolveRulesetGrammar,
-} from '../../events/ruleset-defaults';
+import { isSystemRuleset, normalizeRulesetVersion } from '../../events/ruleset-defaults';
 import {
   describeForkLineage,
   RULESET_LINEAGE_COLUMNS,
@@ -51,11 +44,7 @@ import {
   scoringRulesetExportDefinitionSchema,
   type RulesetExportEnvelope,
 } from '../../../common/ruleset-export';
-import type {
-  CreateCustomRulesetDto,
-  ForkCustomRulesetDto,
-  UpdateCustomRulesetDto,
-} from './dto/custom-rulesets.dto';
+import type { CreateCustomRulesetDto, UpdateCustomRulesetDto } from './dto/custom-rulesets.dto';
 import { validateMatchFormatDefaults, validatePointsCapTfConfig } from './match-format-defaults';
 
 export interface CustomRulesetRow {
@@ -1171,97 +1160,6 @@ export class CustomRulesetsService {
       {
         code,
         orgId,
-      },
-    );
-    return data as CustomRulesetRow;
-  }
-
-  /**
-   * Fork the built-in TF v1 (the one base a fork may reuse, `refuseNonTfBase`)
-   * into a new org-owned row — the org-level
-   * equivalent of a tournament's "Customise this format". Produces exactly the
-   * same shape as `EventsService.forkCodedRulesetForTournament` (same builder),
-   * so a cloned fork is indistinguishable from a tournament-made one: the
-   * resolver short-circuits `base_code` to the coded engine, and
-   * `score_formula`/`constants`/`tiebreakers` stay empty and unread.
-   *
-   * Deliberately NOT a branch inside `createForOrg`. That method is also reached
-   * by `importForOrg`, and its DTO is shared with the super-admin `create` —
-   * teaching either about `baseCode` would weaken validation on paths that have
-   * nothing to do with forking.
-   */
-  async forkForOrg(
-    orgId: string,
-    dto: ForkCustomRulesetDto,
-    actorUserId: string,
-  ): Promise<CustomRulesetRow> {
-    // No base version named (a "Clone" of the built-in): its latest. A version
-    // named (an "Adopt" of a fork) is honoured: a fork of 1.0.0 stays 1.0.0.
-    const baseVersion = normalizeRulesetVersion(
-      dto.baseVersion ?? defaultRulesetVersion(this.registry, dto.baseCode),
-    );
-    // Only a built-in can be a base: its algorithm is the thing being reused.
-    // This is also what stops an org forking another org's row — adopting a
-    // shared fork must re-base on that fork's OWN base, not on the fork.
-    if (!isSystemRuleset(this.registry, dto.baseCode, baseVersion)) {
-      throw new BadRequestException(
-        `Only a built-in format can be customised this way. "${dto.baseCode}" is not one.`,
-      );
-    }
-    refuseNonTfBase(dto.baseCode);
-    // Org rows are born status:'published', so create IS the publish gate —
-    // same reasoning as createForOrg. No formula dry-run: there is no formula
-    // (dryRunRuleset takes this identical branch for a base_code row).
-    this.assertGrammarNonEmpty(dto.targets);
-
-    const grammar = await resolveRulesetGrammar(
-      this.supabase,
-      this.registry,
-      dto.baseCode,
-      baseVersion,
-    );
-    const code = `custom_${dto.baseCode.toLowerCase()}_fork_${Date.now().toString(36)}`;
-    const row = buildCodedForkRow({
-      code,
-      baseCode: dto.baseCode,
-      baseVersion,
-      name: dto.name.trim(),
-      ownerOrganizationId: orgId,
-      actorUserId,
-      tfConfig: validateTfConfigPatch(dto.tfConfig ?? {}),
-      grammar,
-    });
-    // Overlay only what the builder fixes or leaves out. `targets` is the one
-    // grammar control still editable on a coded row (AfterblowGrammarEditor is
-    // disabled when isCoded), so the base's resolved grammar stays authoritative
-    // for afterblow rather than absorbing the form's client-side defaulting.
-    Object.assign(row, {
-      version: storedVersion(dto.version),
-      description: dto.description?.trim() || null,
-      ...(dto.targets !== undefined ? { targets: dto.targets } : {}),
-    });
-
-    const { data, error } = await this.supabase.service
-      .from('custom_rulesets')
-      .insert(row)
-      .select('*')
-      .single();
-    if (error || !data) {
-      if (error?.message?.includes('unique')) {
-        throw new ConflictException(`Ruleset code "${code}" already exists`);
-      }
-      throw new BadRequestException(error?.message ?? 'Fork failed');
-    }
-
-    await this.writeAuditLog(
-      actorUserId,
-      'custom_ruleset.fork_for_org',
-      (data as CustomRulesetRow).id,
-      {
-        code,
-        orgId,
-        baseCode: dto.baseCode,
-        baseVersion,
       },
     );
     return data as CustomRulesetRow;

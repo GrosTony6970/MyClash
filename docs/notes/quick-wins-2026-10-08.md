@@ -4305,6 +4305,18 @@ from the Android gallery: the API keeps only the JPEG shape a camera writes (`jp
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
 | Convert (1004) | A spectator sends a picture saved from a website, or a Google Photos cloud copy. Both are often progressive; the API refuses them. | **The phone converts it first**: drawn on a canvas, sent as one baseline scan, re-compressed. A camera JPEG is still sent byte for byte. The API's check does not change. | `apps/web-public/src/lib/photos/camera-jpeg.ts` |
 
+### Rulings — operator, 2026-11-27: a copy of TF_v1 is a formula the club can edit
+
+Asked when a clone of TF_v1 could not edit its formula or its tie-breakers: it was a coded fork
+(ARCHITECTURE §7bis.2), and the formula language could not reproduce TF_v1.
+
+| Row                  | Story                                                                                                                                      | Ruling                                                                                                                                                           | Files                                        |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| Copy (1005)          | Léa clones TF_v1 to make "Club TF" and wants to change its formula and its tie-breakers.                                                   | **The copy is a formula ruleset pre-filled to TF_v1**, proven to score the same until edited. TF_v1 and "Customise this format" stay coded.                      | `packages/rulesets/src/tf_v1/as-formula.ts`  |
+| Hits received (1006) | In a formula "Hits received" was points conceded (a deep hit = 2); as a tie-breaker and in the table it was times hit (a deep hit = 1).    | **"Hits received" counts times hit everywhere.** A new "Points received" keeps the old meaning. The editor explains every word.                                  | `packages/rules/src/formula/derive-stats.ts` |
+| Divide by 0 (1007)   | Marc was never hit and had no doubles: 9 / 0. TF_v1 gives him 9; a club formula gave him 0 and ranked him last.                            | **`x / 0 = x` in every formula**, the double-hit penalty formula included.                                                                                       | `packages/rules/src/formula/evaluator.ts`    |
+| Bout score (1008)    | A referee presses "Deep target, 2 points" under a club formula ruleset: the tablet shows +2, the server counted +1 and dropped afterblows. | **The server counts the button's value** and nets an afterblow by the Tournament's afterblow mode, for every club formula ruleset. Points cap keeps its 1 point. | `packages/rulesets/src/formula/ruleset.ts`   |
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,

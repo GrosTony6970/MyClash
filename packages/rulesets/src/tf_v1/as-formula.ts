@@ -18,10 +18,11 @@
  *
  * Pure: no I/O.
  */
-import type { RulesetGrammar } from '../formula/ruleset';
 import { DEFAULT_FORMULA_CONSTANTS, type FormulaConfig, type FormulaNode } from '../formula/types';
 import { TFv1ConfigSchema } from './config';
-import { TF_v1 } from './index';
+import type { DoublePenaltySpec } from './double-penalty';
+import { TF_V1_AFTERBLOW } from './index';
+import type { Target } from './targets';
 
 const v = (
   name: 'victories' | 'pointsPerVictory' | 'hitsGiven' | 'hitsReceived' | 'doublePenalty',
@@ -42,14 +43,14 @@ const TF_V1_SCORE_FORMULA: FormulaNode = {
   right: { type: 'binop', op: '+', left: v('hitsReceived'), right: v('doublePenalty') },
 };
 
+/** Every field set: a copy of TF_v1 states each rule rather than leaving one to a default. */
 export interface TfV1AsFormula {
-  formula: FormulaConfig;
-  grammar: RulesetGrammar;
+  formula: FormulaConfig & { doublePenaltyFormula: DoublePenaltySpec };
+  grammar: { targets: Target[] } & typeof TF_V1_AFTERBLOW;
 }
 
 export function tfV1AsFormula(tfConfig?: unknown): TfV1AsFormula {
   const cfg = TFv1ConfigSchema.parse(tfConfig ?? {});
-  const meta = TF_v1.metadata!;
   return {
     formula: {
       scoreFormula: TF_V1_SCORE_FORMULA,
@@ -62,12 +63,6 @@ export function tfV1AsFormula(tfConfig?: unknown): TfV1AsFormula {
       ],
       doublePenaltyFormula: cfg.doublePenaltyFormula,
     },
-    grammar: {
-      targets: cfg.targets,
-      hasAfterblow: meta.hasAfterblow,
-      defaultAfterblowMode: meta.defaultAfterblowMode,
-      afterblowValuation: meta.afterblowValuation,
-      afterblowFixedValue: meta.afterblowFixedValue,
-    },
+    grammar: { targets: cfg.targets, ...TF_V1_AFTERBLOW },
   };
 }

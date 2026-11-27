@@ -111,7 +111,6 @@ export const NOT_EVENT_OWNED: Readonly<Record<string, readonly string[]>> = {
       'POST organizations/:orgId/compensation-plans',
       'POST organizations/:orgId/custom-rulesets',
       'POST organizations/:orgId/custom-rulesets/:id/submit',
-      'POST organizations/:orgId/custom-rulesets/fork',
       'POST organizations/:orgId/custom-rulesets/import',
       'POST organizations/:orgId/custom-rulesets/validate',
       'POST organizations/:orgId/penalty-rulesets/import',

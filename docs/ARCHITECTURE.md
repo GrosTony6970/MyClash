@@ -954,11 +954,22 @@ governs only whether the ruleset appears in the platform-wide catalog for _other
 | **Formula**    | `score_formula` (AST)        | a `FormulaRuleset` built from the stored grammar          |
 | **Coded fork** | `base_code` + `base_version` | short-circuits to `registry.get(base_code, base_version)` |
 
-The coded fork exists because TF*v1's ranking (score, then wins, doubles, timesHit, seed) is an
-algorithm, not an expression — re-authoring it as a formula AST is explicitly ruled out, since the DSL
-cannot carry its tiebreak chain. A fork that wants TF_v1's **maths** with different **parameters**
-therefore keeps pointing at the coded engine while supplying its own config. `base_version` pins \_which*
-coded version the fork tracks, so a later TF_v1@2.0.0 cannot silently change a fork of 1.0.0.
+A coded fork comes from a Tournament's **"Customise this format"** only (ruling 140): a photo of
+the Tournament's TF_v1 settings, pointing at the coded engine with its own config. `base_version`
+pins _which_ coded version the fork tracks, so a later TF_v1@2.0.0 cannot silently change a fork of
+1.0.0.
+
+An organisation's **Clone** or **Adopt** of TF_v1 (or of a coded fork of it) is a **formula**
+ruleset the club can edit freely (rulings 1005-1008), like a copy of Points cap (ruling 133). It
+starts from `tfV1AsFormula(tf_config)` (`packages/rulesets/src/tf_v1/as-formula.ts`):
+`(victories × pointsPerVictory + hitsGiven) / (hitsReceived + doublePenalty)`, the source's win
+bonus, double penalty and targets, TF_v1's tie-breakers and afterblow rule. Until edited it scores
+and ranks exactly as TF_v1, which `tf_v1.as-formula.parity.test.ts` proves on the FAL 2026 data and
+on the afterblow golden bout. Three formula rules make that hold, for every club formula:
+`hitsReceived` is TF_v1's times-hit count (`pointsReceived` is the points those hits were worth),
+`x / 0 = x`, and the server's bout score counts the value of the button pressed. One difference is
+left: TF_v1 counts a win from the bout's winner, a formula from the bout's outcome
+(`boutOutcomes`); they differ only on a bout that ended with no winner but unequal scores.
 
 ### 7bis.3 A pin is a pointer, resolved at read time
 
@@ -1092,7 +1103,7 @@ These rules keep a pinned definition from shifting under a tournament, or from l
 
 | Actor            | Endpoints                                                                                                                                                                               |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Organisation** | `GET catalog` · `POST fork` · `POST validate` · `PATCH :id` · `DELETE :id` (soft-archives if referenced) · `POST :id/submit` · `GET :id/export` · `POST import`                         |
+| **Organisation** | `GET catalog` · `POST validate` · `PATCH :id` · `DELETE :id` (soft-archives if referenced) · `POST :id/submit` · `GET :id/export` · `POST import`                                       |
 | **Super admin**  | `POST :id/publish` / `:id/unpublish` · `GET :id/versions` · `POST :id/versions/:versionId/rollback` · `POST :id/set-default` · `POST :id/approve-public` · `POST :id/reject-submission` |
 
 ### 7bis.6 Ruleset versions: what a version decides
@@ -1123,8 +1134,8 @@ after it is decided as it was fought (operator ruling "TF_v1 version", 2026-10-1
   `normalizeRulesetVersion` reads it as 1.0.0, the old rule, and every writer stores the full form.
 - **New work gets the latest.** A new Tournament, and a fork of a built-in with no base version
   named, take `latestVersionOf(code)`; the pickers list the latest version of each code, and a
-  Tournament on an older one shows it as "earlier end rules". Adopting another club's fork keeps that
-  fork's base version.
+  Tournament on an older one shows it as "earlier end rules". A copy of a club's TF_v1 fork is a new
+  formula ruleset, so it takes today's edition like every club ruleset created (§7bis.2).
 - **A version move.** On a built-in, moving to its other version keeps the Tournament's settings; a
   club ruleset's other version is its content, so the settings follow it (`settingsAfterMove`,
   `apps/api/src/modules/events/ruleset-move-config.ts`, rulings "A version move", "Club version").

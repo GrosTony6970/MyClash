@@ -1221,6 +1221,8 @@ export const admin = {
       'These rulesets are available to tournaments. System rulesets cannot be edited.',
     curatedEmpty: 'No curated rulesets yet.',
     curatedLoadError: 'Could not load curated rulesets.',
+    cloneSourceUnreadable:
+      "This ruleset's stored settings could not be read, so the copy starts from a blank form.",
     loadOneError: 'Could not load ruleset.',
     createButton: 'New ruleset',
     createTitle: 'Create custom ruleset',
