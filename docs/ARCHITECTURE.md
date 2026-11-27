@@ -5074,7 +5074,7 @@ V1 is constrained draft-and-review only. AI returns strict JSON actions for tour
 
 **A schedule draft is checked whole, then written whole** (`assertPlacementsFit`, `applySchedule`). Before the claim, Apply checks every Match is at this Event, then gives every placement to the placement owner with `checkOnly` (`placeMatches`, which writes nothing). Two bouts of one draft on one Lice at one time, or a bout on a Lice the board has filled since, refuse the Apply: nothing moves, and the draft stays `ready`. After the claim, Apply writes every placement in ONE `placeMatches` call, as the schedule board writes a batch. One call per action refused a shift the check had passed: Marie moves M01 14:00→14:30, M02 14:30→15:00 and M03 15:00→15:30 on one Lice, and M01 alone met M02, still at 14:30. The owner leaves the batch's own bouts out by their old place, so the shift and a swap pass. The one call is not atomic: the owner writes row by row (`allSettled`). After its check passes, a row fails only on a database error, and the owner's refusal then says "k/N placements applied". The board can still change between the check and the write; the write's own check then refuses before any bout moves. A collision, at the check or at the write, refuses with 409 `schedule_collision` and "A bout of this draft overlaps another on its piste." (`placeSchedule`): the owner's own 409 names a Match by its id, and the page would show it. Any other refusal of the owner stays as it is. Like a move on the board, a moved bout's referees are not judged again (ADR-016 rejected refusing schedule moves that break a referee rule).
 
-**The page** (`/org/[slug]/events/[eventId]/ai-assistant`). `?draft=<id>` opens one draft through `GET …/drafts/:draftId`, so a link from Claude opens a draft older than the list's newest 50. An id of no draft at this Event (404) or a malformed one (400) shows "This draft is not at this Event.", never the API's sentence, which names the id. Choosing a draft in the history writes its id into the address. The draft shows in words only, with Apply and Reject (ruling 993): the JSON box and its Save are gone, so to change a draft the organiser rejects it and asks again. `DraftActionsView` (`apps/web-admin/src/components/ai/DraftActionsView.tsx`) words `readable` in EN and FR, each start on its Event's wall clock; the chat's proposal card shows the same view (ruling 995). After Apply or Reject the open draft reads again and shows its new state. A draft whose Apply started shows neither Apply nor Reject; one whose Apply stopped (`failed` and `applyStarted`) says so in words: "Apply stopped before it finished. Part of it may have run, so it cannot be applied again — check the Event, then make a new draft." It never says how far the Apply got, because the count of completed actions is not what ran (ruling 997). `draft_closed` has its own words on the page and on the card, and the card reads the conversation again after it. `schedule_collision` has its own words on Apply, on the page and on the card (`applyFailureMessage`, `apps/web-admin/src/lib/discard-refusal.ts`).
+**The page** (`/org/[slug]/events/[eventId]/ai-assistant`). `?draft=<id>` opens one draft through `GET …/drafts/:draftId`, so a link from Claude opens a draft older than the list's newest 50. An id of no draft at this Event (404) or a malformed one (400) shows "This draft is not at this Event.", never the API's sentence, which names the id. Choosing a draft in the history writes its id into the address. The draft shows in words only, with Apply and Reject (ruling 993): the JSON box and its Save are gone, so to change a draft the organiser rejects it and asks again. `DraftActionsView` (`apps/web-admin/src/components/ai/DraftActionsView.tsx`) words `readable` in EN and FR, each start on its Event's wall clock; the chat's proposal card shows the same view (ruling 995). After Apply or Reject the open draft reads again and shows its new state. A draft whose Apply started shows neither Apply nor Reject; one whose Apply stopped (`failed` and `applyStarted`) says so in words: "Apply stopped before it finished. Part of it may have run, so it cannot be applied again — check the Event, then make a new draft." It never says how far the Apply got, because the count of completed actions is not what ran (ruling 997). `draft_closed` has its own words on the page and on the card, and the card reads the conversation again after any refused Confirm or Dismiss. `schedule_collision` has its own words on Apply, on the page and on the card (`applyFailureMessage`, `apps/web-admin/src/lib/discard-refusal.ts`).
 
 ### 26.5 Super-admin AI Data Quality (T-1305)
 
@@ -5563,7 +5563,7 @@ person the change, the crew after it and every warning, and to call apply only a
 `destructiveHint` makes Claude ask before it calls apply. Neither tool answers an id: the
 confirmation is sealed, and everything else is a name or a code.
 
-**The preview, in order** (`preview-referee-assignment.ts:184-216`):
+**The preview, in order** (`preview-referee-assignment.ts:183-215`):
 
 1. No confirmation key → the tool throws (the generic failure). It never answers a preview that
    apply could not check.
@@ -5587,7 +5587,7 @@ confirmation is sealed, and everything else is a name or a code.
 10. The answer, the two fighters' names (`vw_tournament_query_matches`; a failed read throws) and
     the sealed confirmation (call G).
 
-**The apply, in order** (`apply-referee-assignment.ts:182-241`):
+**The apply, in order** (`apply-referee-assignment.ts:181-240`):
 
 1. Maintenance first, before the token is opened or anything is read.
 2. No confirmation key → the tool throws.
@@ -5608,7 +5608,7 @@ confirmation is sealed, and everything else is a name or a code.
      maintenance. So the gate that counts is the one asked after the wait, on the Event's status
      as it is then.
 
-8. The recheck (`recheck`, `apply-referee-assignment.ts:119-154`), on a new crew read. The holder
+8. The recheck (`recheck`, `apply-referee-assignment.ts:118-153`), on a new crew read. The holder
    must still be the token's `prev`, and who holds the role once written must still be the token's
    `next` (call H). A removal: the holder must still be a Match-level row (call M). A swap: the new
    referee must still be on the Event's referee roster and still hold the role's skill, and the
@@ -5699,7 +5699,7 @@ The calls made (the operator may overrule):
   case- and accent-blind (`namedBest`). Several people → a refusal that names each with their
   club, so Claude asks which. Nobody → a refusal. A person without the role's skill refuses by name.
 
-**The audit row** (`apply-referee-assignment.ts:243-272`). `setRefereeRoleAssignment` writes no
+**The audit row** (`apply-referee-assignment.ts:242-271`). `setRefereeRoleAssignment` writes no
 audit row, so the tool writes one per write, after the write only:
 
 - action `match.referee_role_assigned`, or `match.referee_role_removed` for a removal;
@@ -5734,7 +5734,7 @@ The races, named:
   roster, the checker, and the write's own lock and checker reads. The app's name is the one call
   to GoTrue (the sign-in server). It is read before the re-read and before the per-Event lock. So
   no call to GoTrue sits between the re-read and the write, only database reads, and no apply of
-  the Event waits on GoTrue (`apply-referee-assignment.ts:16-22,222-225`). Accepted.
+  the Event waits on GoTrue (`apply-referee-assignment.ts:16-22,221-224`). Accepted.
 - **Two applies of one Event at once.** Marie says "put Paul on LSW-P2-M04 and on LSW-P3-M01".
   The two Matches overlap on two pistes. Claude previews both (each is Fine: neither is written
   yet), and calls apply twice in one turn. Each apply's recheck, and each write's own `judgeWrite`,
