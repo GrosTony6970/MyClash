@@ -84,12 +84,15 @@ export const budgets = [
   // (9 bytes free), and every admin page carries the whole admin dictionary, so the three
   // sentences of the rules screens' read and save states went 55 bytes over. 470 KiB guards
   // against real growth (a library on every page), not against one word.
+  // Raised on 2026-11-27 (operator, "Venues budget"): 482,705 measured against 470 KiB
+  // (1,425 bytes over) when the match-format screens gained the venues scoring fields and
+  // their EN+FR words. 475 KiB keeps the same guard against a library on every page.
   {
     name: 'web-admin every page load',
     type: 'page-load',
     root: join('apps', 'web-admin'),
     app: 'web-admin',
-    budgetBytes: 470 * 1024,
+    budgetBytes: 475 * 1024,
   },
 ];
 
