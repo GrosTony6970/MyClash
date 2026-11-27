@@ -7136,6 +7136,59 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/events/{eventId}/ai-assistant/drafts': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List organizer AI setup drafts */
+    get: operations['OrganizerAIAssistantController_list'];
+    put?: never;
+    /** Create an organizer AI setup draft */
+    post: operations['OrganizerAIAssistantController_create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/ai-assistant/drafts/{draftId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one organizer AI setup draft */
+    get: operations['OrganizerAIAssistantController_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update or reject an organizer AI setup draft */
+    patch: operations['OrganizerAIAssistantController_update'];
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/ai-assistant/drafts/{draftId}/apply': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Apply a reviewed organizer AI setup draft */
+    post: operations['OrganizerAIAssistantController_apply'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/my-schedule': {
     parameters: {
       query?: never;
@@ -8474,59 +8527,6 @@ export interface paths {
     get: operations['SwissStandingsController_getRounds'];
     put?: never;
     post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/ai-assistant/drafts': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List organizer AI setup drafts */
-    get: operations['OrganizerAIAssistantController_list'];
-    put?: never;
-    /** Create an organizer AI setup draft */
-    post: operations['OrganizerAIAssistantController_create'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/ai-assistant/drafts/{draftId}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get one organizer AI setup draft */
-    get: operations['OrganizerAIAssistantController_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Update or reject an organizer AI setup draft */
-    patch: operations['OrganizerAIAssistantController_update'];
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/ai-assistant/drafts/{draftId}/apply': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Apply a reviewed organizer AI setup draft */
-    post: operations['OrganizerAIAssistantController_apply'];
     delete?: never;
     options?: never;
     head?: never;
@@ -12812,6 +12812,29 @@ export interface components {
       /** @enum {string} */
       status: 'registered' | 'checked_in' | 'done' | 'withdrawn' | 'disqualified';
     };
+    CreateOrganizerAIDraftDto: {
+      /** @enum {string} */
+      draftType:
+        | 'tournament_config'
+        | 'pool_plan'
+        | 'bracket_plan'
+        | 'schedule_grid'
+        | 'referee_assignments';
+      prompt: string;
+      /** Format: uuid */
+      tournamentId?: string;
+    };
+    UpdateOrganizerAIDraftDto: {
+      summary?: string;
+      proposedActions?: {
+        [key: string]: unknown;
+      }[];
+      validationState?: {
+        [key: string]: unknown;
+      };
+      /** @enum {string} */
+      status?: 'ready' | 'rejected';
+    };
     SchedulePlacementsDto: {
       placements: {
         /** Format: uuid */
@@ -13234,29 +13257,6 @@ export interface components {
       /** Format: uuid */
       blueRegistrationId: string | null;
       confirm?: boolean;
-    };
-    CreateOrganizerAIDraftDto: {
-      /** @enum {string} */
-      draftType:
-        | 'tournament_config'
-        | 'pool_plan'
-        | 'bracket_plan'
-        | 'schedule_grid'
-        | 'referee_assignments';
-      prompt: string;
-      /** Format: uuid */
-      tournamentId?: string;
-    };
-    UpdateOrganizerAIDraftDto: {
-      summary?: string;
-      proposedActions?: {
-        [key: string]: unknown;
-      }[];
-      validationState?: {
-        [key: string]: unknown;
-      };
-      /** @enum {string} */
-      status?: 'ready' | 'rejected';
     };
     CreateConversationDto: {
       /** Format: uuid */
@@ -24167,6 +24167,112 @@ export interface operations {
       };
     };
   };
+  OrganizerAIAssistantController_list: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrganizerAIAssistantController_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateOrganizerAIDraftDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrganizerAIAssistantController_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+        draftId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrganizerAIAssistantController_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+        draftId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateOrganizerAIDraftDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrganizerAIAssistantController_apply: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+        draftId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   MyScheduleController_getMySchedule: {
     parameters: {
       query?: never;
@@ -26136,112 +26242,6 @@ export interface operations {
     requestBody?: never;
     responses: {
       200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  OrganizerAIAssistantController_list: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  OrganizerAIAssistantController_create: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CreateOrganizerAIDraftDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  OrganizerAIAssistantController_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-        draftId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  OrganizerAIAssistantController_update: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-        draftId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateOrganizerAIDraftDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  OrganizerAIAssistantController_apply: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-        draftId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      201: {
         headers: {
           [name: string]: unknown;
         };

@@ -20,6 +20,7 @@ import { MatchesService } from '../matches/matches.service';
 import { MeEventsService } from '../me/me-events.service';
 import { PublicScheduleService } from '../persons/public-schedule.service';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { OrganizerAIAssistantService } from '../organizer-ai-assistant/organizer-ai-assistant.service';
 import { PoolStandingsService } from '../pool-standings/pool-standings.service';
 import { AssignmentBoardService } from '../referees/assignment-board.service';
 import { QualificationsService } from '../referees/qualifications.service';
@@ -28,7 +29,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { TournamentQueryToolsService } from '../tournament-query/tournament-query.tools.service';
 import { McpDoor } from './mcp-door.decorator';
 import { mcpCallerOf } from './mcp-door.guard';
-import { buildMcpServer } from './mcp-server';
+import { buildMcpServer, type McpToolDeps } from './mcp-server';
 import { confirmationKey } from './tools/write-confirmation';
 
 /** JSON-RPC's own "internal error", for a request the door could not finish. */
@@ -52,6 +53,7 @@ export const MCP_INTERNAL_ERROR = JSON.stringify({
 export class McpController {
   private readonly logger = new Logger(McpController.name);
   private readonly confirmKey: Buffer | null;
+  private readonly domain: string | null;
 
   constructor(
     private readonly meEvents: MeEventsService,
@@ -66,12 +68,15 @@ export class McpController {
     private readonly matches: MatchesService,
     private readonly refereeBoard: AssignmentBoardService,
     private readonly qualifications: QualificationsService,
+    private readonly assistant: OrganizerAIAssistantService,
     config: ConfigService,
   ) {
     // Derived once: the tools never read the environment. No secret, no key: a write preview
     // then fails rather than hand out a token apply could not check.
     const secret = config.get<string>('SUPABASE_JWT_SECRET');
     this.confirmKey = secret ? confirmationKey(secret) : null;
+    // No DOMAIN, no draft link: a draft tool then fails before it saves.
+    this.domain = config.get<string>('DOMAIN') ?? null;
   }
 
   @Post()
@@ -86,21 +91,7 @@ export class McpController {
     let server: McpServer | undefined;
     let transport: StreamableHTTPServerTransport | undefined;
     try {
-      server = buildMcpServer(caller, {
-        meEvents: this.meEvents,
-        supabase: this.supabase,
-        orgs: this.orgs,
-        schedule: this.schedule,
-        fighters: this.fighters,
-        events: this.events,
-        scheduleGrid: this.scheduleGrid,
-        poolStandings: this.poolStandings,
-        queryTools: this.queryTools,
-        matches: this.matches,
-        refereeBoard: this.refereeBoard,
-        qualifications: this.qualifications,
-        confirmKey: this.confirmKey,
-      });
+      server = buildMcpServer(caller, this.toolDeps());
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
         enableJsonResponse: true,
@@ -123,6 +114,27 @@ export class McpController {
     } finally {
       await Promise.allSettled([transport?.close(), server?.close()]);
     }
+  }
+
+  /** The services and the settings the tools are given: they read no environment themselves. */
+  private toolDeps(): McpToolDeps {
+    return {
+      meEvents: this.meEvents,
+      supabase: this.supabase,
+      orgs: this.orgs,
+      schedule: this.schedule,
+      fighters: this.fighters,
+      events: this.events,
+      scheduleGrid: this.scheduleGrid,
+      poolStandings: this.poolStandings,
+      queryTools: this.queryTools,
+      matches: this.matches,
+      refereeBoard: this.refereeBoard,
+      qualifications: this.qualifications,
+      confirmKey: this.confirmKey,
+      assistant: this.assistant,
+      domain: this.domain,
+    };
   }
 
   @Get()

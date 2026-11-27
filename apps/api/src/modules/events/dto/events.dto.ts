@@ -324,7 +324,7 @@ const tournamentLockConfigSchema = z
   })
   .strict();
 
-const createTournamentSchema = z
+export const createTournamentSchema = z
   .object({
     name: z.string().min(2).max(200),
     slug: z

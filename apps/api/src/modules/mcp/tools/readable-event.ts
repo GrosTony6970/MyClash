@@ -95,19 +95,43 @@ export async function readableTournamentId(
 ): Promise<{ event: McpEvent; tournamentId: string } | McpRefusal> {
   const event = await readableEventBySlug(eventSlug, caller, deps);
   if (!event) return noEventRefusal(eventSlug);
+  return readableTournamentIn(event, tournamentSlug, caller, deps);
+}
 
-  const { data, error } = await deps.supabase.service
-    .from('tournaments')
-    .select('id')
-    .eq('event_id', event.id)
-    .eq('slug', tournamentSlug)
-    .maybeSingle();
-  if (error) throw new Error(`tournament read failed: ${error.message}`);
-  if (!data) return noTournamentRefusal(tournamentSlug, event);
-  const tournamentId = (data as { id: string }).id;
+/**
+ * `readableTournamentId` for an Event the tool has already read through the Event gate: the
+ * Tournament by slug inside it, then the public Tournament gate.
+ */
+export async function readableTournamentIn(
+  event: McpEvent,
+  tournamentSlug: string,
+  caller: McpCaller,
+  deps: EventAuthzDeps,
+): Promise<{ event: McpEvent; tournamentId: string } | McpRefusal> {
+  const tournamentId = await tournamentIdBySlug(deps, event.id, tournamentSlug);
+  if (!tournamentId) return noTournamentRefusal(tournamentSlug, event);
   const reader = { userId: caller.userId, staff: null };
   if (!(await canReadTournament(deps, tournamentId, reader))) {
     return noTournamentRefusal(tournamentSlug, event);
   }
   return { event, tournamentId };
+}
+
+/**
+ * The id of the Event's Tournament with this slug, hidden or not, or null. A slug is unique in
+ * its Event (`UNIQUE(event_id, slug)`). A failed read throws: it is not "no such Tournament".
+ */
+export async function tournamentIdBySlug(
+  deps: Pick<EventAuthzDeps, 'supabase'>,
+  eventId: string,
+  slug: string,
+): Promise<string | null> {
+  const { data, error } = await deps.supabase.service
+    .from('tournaments')
+    .select('id')
+    .eq('event_id', eventId)
+    .eq('slug', slug)
+    .maybeSingle();
+  if (error) throw new Error(`tournament read failed: ${error.message}`);
+  return (data as { id: string } | null)?.id ?? null;
 }

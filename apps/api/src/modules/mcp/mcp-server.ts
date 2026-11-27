@@ -5,6 +5,7 @@ import type { EventsService } from '../events/events.service';
 import type { FightersService } from '../fighters/fighters.service';
 import type { MatchesService } from '../matches/matches.service';
 import type { MeEventsService } from '../me/me-events.service';
+import type { OrganizerAIAssistantService } from '../organizer-ai-assistant/organizer-ai-assistant.service';
 import type { PublicScheduleService } from '../persons/public-schedule.service';
 import type { PoolStandingsService } from '../pool-standings/pool-standings.service';
 import type { AssignmentBoardService } from '../referees/assignment-board.service';
@@ -12,6 +13,7 @@ import type { QualificationsService } from '../referees/qualifications.service';
 import type { ScheduleGridService } from '../schedule/schedule-grid.service';
 import type { TournamentQueryToolsService } from '../tournament-query/tournament-query.tools.service';
 import { applyRefereeAssignment } from './tools/apply-referee-assignment';
+import { registerDraftTools } from './tools/draft-tools';
 import { eventInfo } from './tools/event-info';
 import { eventSchedule } from './tools/event-schedule';
 import { answer, slug } from './tools/mcp-answer';
@@ -48,6 +50,10 @@ export interface McpToolDeps extends EventAuthzDeps {
   qualifications: QualificationsService;
   /** Seals a write preview's confirmation; null when the server has no secret (writes fail). */
   confirmKey: Buffer | null;
+  /** The drafts Claude saves for the person to apply in MyClash (slice 4b). */
+  assistant: OrganizerAIAssistantService;
+  /** `DOMAIN`, for a draft's admin link; null when unset (a draft tool then fails). */
+  domain: string | null;
 }
 
 /** The version of the tool set Claude sees in `serverInfo`. Raise it when a tool changes. */
@@ -74,6 +80,7 @@ export function buildMcpServer(caller: McpCaller, deps: McpToolDeps): McpServer 
   registerEventTools(server, caller, deps);
   registerOrganiserTools(server, caller, deps);
   registerRefereeWriteTools(server, caller, deps);
+  registerDraftTools(server, caller, deps);
   return server;
 }
 

@@ -4000,9 +4000,10 @@ export class EventsService {
    * resolves, a platform draft as `draftsOfferedTo` says. Another club's
    * private ruleset is refused in the same words as an unknown one, so the
    * answer says nothing of what exists. A checker missing is the server's
-   * wiring fault, never the caller's.
+   * wiring fault, never the caller's. Claude's draft of a Tournament asks it
+   * before it saves the draft (MCP slice 4b), so Apply does not refuse it later.
    */
-  private async usableRulesetVersion(
+  async usableRulesetVersion(
     code: string,
     named: string | undefined,
     event: unknown,

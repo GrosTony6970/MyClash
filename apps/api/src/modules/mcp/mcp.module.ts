@@ -4,6 +4,7 @@ import { FightersModule } from '../fighters/fighters.module';
 import { MatchesModule } from '../matches/matches.module';
 import { MeModule } from '../me/me.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
+import { OrganizerAIAssistantModule } from '../organizer-ai-assistant/organizer-ai-assistant.module';
 import { PersonsModule } from '../persons/persons.module';
 import { PoolStandingsModule } from '../pool-standings/pool-standings.module';
 import { RefereesModule } from '../referees/referees.module';
@@ -25,6 +26,7 @@ import { ProtectedResourceController } from './protected-resource.controller';
     MatchesModule,
     MeModule,
     OrganizationsModule,
+    OrganizerAIAssistantModule,
     PersonsModule,
     PoolStandingsModule,
     RefereesModule,

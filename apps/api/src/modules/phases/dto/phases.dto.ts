@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { doubleElimPodiumFields, refineDoubleElimPodium } from './double-elim-podium';
 import { SEEDING_STRATEGIES } from './reseed-bracket.dto';
 
-const generatePoolsSchema = z
+export const generatePoolsSchema = z
   .object({
     /**
      * Explicit number of pools. Mutually exclusive with targetSize.

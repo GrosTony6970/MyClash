@@ -36,14 +36,27 @@ export async function resolveCatalogWeapon(
   client: CatalogWeaponClient,
   name: string,
 ): Promise<string> {
+  const match = await catalogWeaponName(client, name);
+  if (match === null) {
+    throw new BadRequestException(`Weapon "${name}" is not an active catalog entry`);
+  }
+  return match;
+}
+
+/**
+ * The same match as `resolveCatalogWeapon`, answering null for a name the catalogue does not
+ * hold: for a caller that refuses in its own words (Claude's draft of a Tournament). A failed
+ * read still throws.
+ */
+export async function catalogWeaponName(
+  client: CatalogWeaponClient,
+  name: string,
+): Promise<string | null> {
   const wanted = name.trim().toLowerCase();
   const { data, error } = await (client.from('weapon_catalog') as CatalogWeaponQuery)
     .select('name')
     .eq('active', true);
   if (error) throw new BadRequestException(error.message);
   const match = (data ?? []).find((w) => w.name.trim().toLowerCase() === wanted);
-  if (!match) {
-    throw new BadRequestException(`Weapon "${name}" is not an active catalog entry`);
-  }
-  return match.name;
+  return match?.name ?? null;
 }
