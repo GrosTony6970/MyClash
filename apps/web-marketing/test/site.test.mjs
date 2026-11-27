@@ -192,6 +192,24 @@ test('every feature card draws its icon', () => {
   }
 });
 
+test('the French landing page never breaks a line before its punctuation', () => {
+  /*
+   * French puts a space before : ; ! ? » and after «. An ordinary space there
+   * lets the browser wrap, so a line can start with a lone colon. The copy uses
+   * a narrow no-break space (U+202F) instead; this reads the rendered text.
+   */
+  const text = pages
+    .get('/')
+    .replace(/<(script|style)\b[\s\S]*?<\/\1>/gu, '')
+    .replace(/<[^>]+>/gu, ' ');
+  const breakable = [...text.matchAll(/.{0,20}(?:[ \t\r\n][:;!?»]|«[ \t\r\n]).{0,20}/gu)];
+  assert.deepEqual(
+    breakable.map((m) => m[0].trim()),
+    [],
+    'French punctuation after an ordinary space: use U+202F',
+  );
+});
+
 test('the stats band ships empty and is filled from the API, never prefilled', () => {
   /*
    * The three figures here were 120 / 45 / 3 000, hardcoded and untrue. Server
