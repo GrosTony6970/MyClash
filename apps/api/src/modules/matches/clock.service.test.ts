@@ -183,4 +183,42 @@ describe('ClockService.computeClockState', () => {
     ]);
     expect(state.startedAt).toBe(T3); // new wall-clock origin after reset
   });
+
+  // The pad's TOTAL TIME counts from startedAt (operator, 2026-11-27): the
+  // referee's Reset starts it again, a new best-of round does not. Both write
+  // a `reset_clock` row; the round's comes after its `round_advance` row.
+  it("the referee's reset_clock clears startedAt; the next resume is the new origin", () => {
+    const reset = [
+      { id: 'e1', type: 'start', reason: null, occurred_at: T0 },
+      { id: 'e2', type: 'halt', reason: null, occurred_at: T1 },
+      { id: 'e3', type: 'reset_clock', reason: null, occurred_at: T2 },
+    ];
+    expect(service.computeClockState('m1', reset).startedAt).toBeNull();
+    const resumed = [...reset, { id: 'e4', type: 'resume', reason: null, occurred_at: T3 }];
+    expect(service.computeClockState('m1', resumed).startedAt).toBe(T3);
+  });
+
+  it("a round's reset_clock keeps startedAt across the rounds of a best-of bout", () => {
+    const state = service.computeClockState('m1', [
+      { id: 'e1', type: 'start', reason: null, occurred_at: T0 },
+      { id: 'e2', type: 'halt', reason: null, occurred_at: T1 },
+      { id: 'e3', type: 'round_advance', reason: 'advance to round 2', occurred_at: T2 },
+      { id: 'e4', type: 'reset_clock', reason: 'next round', occurred_at: T2 },
+      { id: 'e5', type: 'resume', reason: null, occurred_at: T3 },
+    ]);
+    expect(state.activeMs).toBe(0);
+    expect(state.startedAt).toBe(T0);
+  });
+
+  it('a round opened without its zero does not make a later Reset its own', () => {
+    const state = service.computeClockState('m1', [
+      { id: 'e1', type: 'start', reason: null, occurred_at: T0 },
+      { id: 'e2', type: 'halt', reason: null, occurred_at: T1 },
+      { id: 'e3', type: 'round_advance', reason: 'advance to round 2', occurred_at: T2 },
+      { id: 'e4', type: 'resume', reason: null, occurred_at: T2 },
+      { id: 'e5', type: 'halt', reason: null, occurred_at: T3 },
+      { id: 'e6', type: 'reset_clock', reason: null, occurred_at: T4 },
+    ]);
+    expect(state.startedAt).toBeNull();
+  });
 });

@@ -497,7 +497,7 @@ From `match_events` and `exchanges`:
 - **Time between exchanges**: `exchanges.duration_since_prev_ms`, computed at insert.
 - **Currently running matches**: `matches WHERE status='running'`, indexed for the live view.
 
-The scoring pad displays both the active fight clock and a secondary "Temps total" wall-clock elapsed timer that ticks continuously once a match starts (including during halts), giving referees real-time awareness of judging pace.
+The scoring pad displays both the active fight clock and a secondary "Temps total" wall-clock elapsed timer that ticks continuously once a match starts (including during halts), giving referees real-time awareness of judging pace. It counts from the clock's `startedAt` (the shared fold, `packages/rules/src/clock.ts`). The referee's clock Reset clears it, and the next Resume starts it again at zero. "Start round N" of a best-of match writes the same `reset_clock` row, but keeps it: the server folds a `reset_clock` that follows a `round_advance` row with `opensRound`, so the timer covers the whole match.
 
 ### 5.4bis Venues, and what `event_kind` changes
 

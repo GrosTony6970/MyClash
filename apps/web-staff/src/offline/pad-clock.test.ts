@@ -121,6 +121,15 @@ describe('padClock', () => {
     expect(clock?.events).toBe(halted.events);
   });
 
+  it('a Resume the tablet holds after the clock was Reset starts the total time again', () => {
+    // The server's clock after the referee's Reset: halted at zero, no origin.
+    const reset = server({ status: 'halted', activeMs: 0, startedAt: null });
+
+    const clock = padClock('m1', reset, [press('resume', '10:00:00')], NONE);
+
+    expect(clock).toMatchObject({ status: 'running', startedAt: at('10:00:00') });
+  });
+
   it('starts from idle on a bout opened with no network and no copy of its clock', () => {
     expect(padClock('m1', null, [press('start', '10:00:00')], NONE)).toMatchObject({
       status: 'running',

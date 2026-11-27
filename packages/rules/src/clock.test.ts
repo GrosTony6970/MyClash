@@ -71,21 +71,6 @@ describe('foldClock', () => {
     expect(clock).toMatchObject({ status: 'halted', activeMs: 40_000, runningFrom: null });
   });
 
-  it('a Reset of the clock clears the time and keeps the first Start', () => {
-    const clock = foldClock([
-      move('start', '10:00:00'),
-      move('halt', '10:00:30'),
-      move('reset_clock', '10:01:00'),
-    ]);
-
-    expect(clock).toEqual({
-      status: 'halted',
-      activeMs: 0,
-      runningFrom: null,
-      startedAt: at('10:00:00'),
-    });
-  });
-
   it('a time correction moves the time, never under zero, and keeps a run going', () => {
     const halted = [move('start', '10:00:00'), move('halt', '10:00:30')];
 
@@ -108,6 +93,39 @@ describe('foldClock', () => {
 
     expect(foldClock(reset)).toEqual(IDLE_CLOCK);
     expect(foldClock([...reset, move('start', '10:20:00')]).startedAt).toBe(at('10:20:00'));
+  });
+
+  // The pad's TOTAL TIME counts from `startedAt` (operator, 2026-11-27).
+  it('the referee’s Reset of the clock starts the total time again, at the next Resume', () => {
+    const reset = [
+      move('start', '10:00:00'),
+      move('halt', '10:00:30'),
+      move('reset_clock', '10:05:00'),
+    ];
+
+    expect(foldClock(reset)).toEqual({
+      status: 'halted',
+      activeMs: 0,
+      runningFrom: null,
+      startedAt: null,
+    });
+    expect(foldClock([...reset, move('resume', '10:06:00')]).startedAt).toBe(at('10:06:00'));
+  });
+
+  it('the zero of a new best-of round keeps the total time of the bout', () => {
+    const round = [
+      move('start', '10:00:00'),
+      move('halt', '10:00:30'),
+      { ...move('reset_clock', '10:01:00'), opensRound: true },
+      move('resume', '10:02:00'),
+    ];
+
+    expect(foldClock(round)).toEqual({
+      status: 'running',
+      activeMs: 0,
+      runningFrom: at('10:02:00'),
+      startedAt: at('10:00:00'),
+    });
   });
 
   it('keeps the row’s own string for the time it runs from', () => {

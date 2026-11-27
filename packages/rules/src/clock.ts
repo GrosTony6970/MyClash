@@ -31,6 +31,12 @@ export interface ClockMove {
   occurredAt: string;
   /** Of an `adjust_time` row, and of a `level_resolution` row that gives extra time. */
   adjustmentMs?: number | null;
+  /**
+   * Of a `reset_clock` row: it puts a new round of a best-of bout to zero
+   * ("Start round N"), not the referee's Reset. The round keeps the bout's
+   * total time; the referee's Reset starts it again (operator, 2026-11-27).
+   */
+  opensRound?: boolean;
 }
 
 export interface ClockFold {
@@ -39,7 +45,11 @@ export interface ClockFold {
   activeMs: number;
   /** While running: the time of the press that started the interval. */
   runningFrom: string | null;
-  /** The time of the first Start since the bout's last reset. */
+  /**
+   * The origin of the pad's TOTAL TIME: the first Start, or Resume, since the
+   * last reset of the bout or of its clock. A clock reset is halted, so its
+   * next press is a Resume: that press is the new origin.
+   */
   startedAt: string | null;
 }
 
@@ -88,14 +98,25 @@ export function clockStep(clock: ClockFold, move: ClockMove): ClockFold {
     case 'halt':
       return { ...clock, ...closed(clock, move.occurredAt), status: 'halted' };
     case 'resume':
-      return { ...clock, status: 'running', runningFrom: move.occurredAt };
+      return {
+        ...clock,
+        status: 'running',
+        runningFrom: move.occurredAt,
+        startedAt: clock.startedAt ?? move.occurredAt,
+      };
     case 'end':
       return { ...clock, ...closed(clock, move.occurredAt), status: 'ended' };
     case 'reopen':
       // The inverse of End: the time is kept, and the referee resumes or ends again.
       return { ...clock, runningFrom: null, status: 'halted' };
     case 'reset_clock':
-      return { ...clock, activeMs: 0, runningFrom: null, status: 'halted' };
+      return {
+        ...clock,
+        activeMs: 0,
+        runningFrom: null,
+        status: 'halted',
+        startedAt: move.opensRound ? clock.startedAt : null,
+      };
     // A level step is written on a clock that does not run (the server halts
     // it first), so its extra time is one correction of the time, like any other.
     case 'adjust_time':
