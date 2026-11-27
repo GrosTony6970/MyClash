@@ -4328,6 +4328,17 @@ with no winner but unequal scores, and the two read it differently. Spec:
 | Card+draw (1009) | Marc and Léa reach the doubles limit, set to "draw": 0-0. Then Léa gets a card: the board reads 0 to -1, and the bout has no winner.     | **Still a draw.** The limit decided the bout; the card moves the board, not the result.                               | `packages/rules/src/match-format.ts`              |
 | Mark done (1010) | The API's "mark this bout completed" call, used by no screen, could complete a 3-1 bout with no winner, and so with no result or reason. | **It needs a winner who is one of the two fighters**, else a 400 (`winner_not_in_bout`). A draw comes from the clock. | `apps/api/src/modules/matches/matches.service.ts` |
 
+### Rulings — operator, 2026-11-27: the team Tournaments track numbers its rulings from 1101
+
+Several tracks number rulings at once, each checking only what it can see, so the same number
+went to two rulings three times: 983-988 and 989-990, 991-997, and 1005-1010. The team
+Tournaments track (branch `feat/team-tournaments`, PR #109) keeps its decisions in its own handoff
+until the branch merges.
+
+| Ruling | Story                                                                                                  | Ruling                                                                                                                                                                                 |
+| ------ | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1123   | The team track's 989-1012 collide with rulings this register already holds (MCP, TF_v1) or soon would. | **Rulings 1101 to 1199 belong to the team Tournaments track.** Its 989-1012 become 1101-1122 on its branch. Every other track numbers below 1100, or above 1199, and skips this block. |
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,
